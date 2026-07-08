@@ -55,7 +55,9 @@ use snapshot::{
     TmuxSnapshot,
 };
 #[cfg(test)]
-pub(crate) use snapshot::{AgentState, AgentStateSource, TmuxPane, TmuxSession, TmuxWindow};
+pub(crate) use snapshot::{
+    AgentState, AgentStateSource, PaneAgentStatus, TmuxPane, TmuxSession, TmuxWindow,
+};
 
 mod ui;
 #[cfg(test)]

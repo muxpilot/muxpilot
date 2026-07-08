@@ -49,7 +49,7 @@ pub struct TmuxPane {
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentState {
     pub kind: String,
-    pub status: String,
+    pub status: PaneAgentStatus,
     pub source: AgentStateSource,
     pub confidence: u8,
     pub attention: bool,
@@ -64,6 +64,107 @@ pub enum AgentStateSource {
     Process,
     PaneCommand,
     CapturePane,
+}
+
+/// The state of a coding agent running in a pane. Formalizes what was previously
+/// a free-text `status` string so glyphs, severity ordering, and the attention
+/// decision all derive from one typed vocabulary instead of ad-hoc matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PaneAgentStatus {
+    Working,
+    WaitingInput,
+    WaitingApprove,
+    Idle,
+    Error,
+    RateLimited,
+    Parked,
+    Unknown,
+}
+
+impl PaneAgentStatus {
+    /// Kebab-case wire/display string; matches the serde encoding so human
+    /// output and `state --json` stay in lockstep.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Working => "working",
+            Self::WaitingInput => "waiting-input",
+            Self::WaitingApprove => "waiting-approve",
+            Self::Idle => "idle",
+            Self::Error => "error",
+            Self::RateLimited => "rate-limited",
+            Self::Parked => "parked",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// Whether this state should pull the user's eye — the single source of the
+    /// picker's attention aggregation. Only the higher-severity "needs you"
+    /// states qualify.
+    pub fn needs_attention(self) -> bool {
+        matches!(
+            self,
+            Self::WaitingApprove | Self::WaitingInput | Self::Error | Self::RateLimited
+        )
+    }
+
+    /// Ranking used to bubble the worst child state up to a session/window row
+    /// (higher = more urgent). Consumed by later waves; defined here so the
+    /// vocabulary and its ordering live together.
+    // Exercised by tests; wired into row bubbling in T4.
+    #[allow(dead_code)]
+    pub fn severity(self) -> u8 {
+        match self {
+            Self::WaitingApprove => 7,
+            Self::WaitingInput => 6,
+            Self::Error => 5,
+            Self::RateLimited => 4,
+            Self::Working => 3,
+            Self::Idle => 2,
+            Self::Parked => 1,
+            Self::Unknown => 0,
+        }
+    }
+}
+
+impl std::fmt::Display for PaneAgentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Map a free-text hook `@pane_status` value into the typed vocabulary.
+/// Unrecognized values become `Unknown` (the raw string is preserved in the
+/// pane's `evidence`), so a third-party hook cannot inject an invalid state.
+fn parse_pane_status(raw: &str) -> PaneAgentStatus {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "working" | "busy" | "running" | "active" | "thinking" => PaneAgentStatus::Working,
+        // A bare "waiting" from a hook is generic (waiting on the user); the
+        // capture-pane path, which matches approval-style prompts specifically,
+        // uses WaitingApprove instead.
+        "waiting-input" | "waiting_input" | "input" | "waiting" => PaneAgentStatus::WaitingInput,
+        "waiting-approve" | "waiting_approve" | "approve" | "approval" | "permission" => {
+            PaneAgentStatus::WaitingApprove
+        }
+        "idle" | "done" | "ready" | "complete" | "completed" => PaneAgentStatus::Idle,
+        "error" | "failed" | "failure" => PaneAgentStatus::Error,
+        "rate-limited" | "rate_limited" | "ratelimited" | "rate-limit" => {
+            PaneAgentStatus::RateLimited
+        }
+        "parked" => PaneAgentStatus::Parked,
+        _ => PaneAgentStatus::Unknown,
+    }
+}
+
+/// Resolve a pane's attention flag from the hook's explicit `@pane_attention`
+/// value and the parsed status. An explicit value is authoritative in both
+/// directions; an unset value falls back to whether the status needs attention.
+fn attention_from_hook(raw_attention: &str, status: PaneAgentStatus) -> bool {
+    match raw_attention.trim() {
+        "" => status.needs_attention(),
+        "clear" | "none" | "false" | "0" => false,
+        _ => true,
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -225,25 +326,31 @@ fn infer_agent(
     processes: &HashMap<u32, ProcessInfo>,
 ) -> Option<AgentState> {
     if !hook_agent.is_empty() {
+        let status = parse_pane_status(hook_status);
+        let mut evidence = vec!["@pane_agent".to_string()];
+        if !hook_status.is_empty() {
+            evidence.push(format!("@pane_status={hook_status}"));
+        }
         return Some(AgentState {
             kind: hook_agent.to_string(),
-            status: if hook_status.is_empty() {
-                "detected".to_string()
-            } else {
-                hook_status.to_string()
-            },
+            status,
             source: AgentStateSource::Hook,
             confidence: 100,
-            attention: !attention.is_empty() && attention != "clear",
+            // An explicit `@pane_attention` value wins in *both* directions:
+            // "clear"/"none" force-suppresses (a hook saying "don't bug me"),
+            // any other non-empty value force-raises. When unset, the status
+            // implies it. Keeps the independent hook signal authoritative.
+            attention: attention_from_hook(attention, status),
             wait_reason: wait_reason.to_string(),
-            evidence: vec!["@pane_agent".to_string()],
+            evidence,
         });
     }
 
     if let Some(kind) = detect_process_agent(pane_pid, processes) {
         return Some(AgentState {
             kind,
-            status: "detected".to_string(),
+            // Present but state unobservable without a hook or capture.
+            status: PaneAgentStatus::Unknown,
             source: AgentStateSource::Process,
             confidence: 85,
             attention: false,
@@ -254,7 +361,7 @@ fn infer_agent(
 
     detect_agent_name(command).map(|kind| AgentState {
         kind: kind.to_string(),
-        status: "detected".to_string(),
+        status: PaneAgentStatus::Unknown,
         source: AgentStateSource::PaneCommand,
         confidence: 60,
         attention: false,
@@ -296,7 +403,14 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
     .iter()
     .any(|needle| lower.contains(needle));
 
-    let status = if waiting { "waiting" } else { "visible" }.to_string();
+    // The waiting needles above are approval prompts. A visible-but-not-waiting
+    // agent is left `Unknown` here; distinguishing working vs idle from the
+    // screen is T2's job.
+    let status = if waiting {
+        PaneAgentStatus::WaitingApprove
+    } else {
+        PaneAgentStatus::Unknown
+    };
     let wait_reason = if waiting {
         "screen prompt or approval text".to_string()
     } else {
@@ -307,7 +421,7 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
         Some(agent) if !matches!(agent.source, AgentStateSource::Hook) => {
             if waiting {
                 agent.status = status;
-                agent.attention = true;
+                agent.attention = status.needs_attention();
                 agent.wait_reason = wait_reason;
             }
             agent.confidence = agent.confidence.max(90);
@@ -319,7 +433,7 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
                 status,
                 source: AgentStateSource::CapturePane,
                 confidence: if waiting { 80 } else { 50 },
-                attention: waiting,
+                attention: status.needs_attention(),
                 wait_reason,
                 evidence: vec!["capture-pane".to_string()],
             });
@@ -455,4 +569,74 @@ pub fn render_snapshot_human(snapshot: &TmuxSnapshot) -> String {
         }
     }
     out.join("\n")
+}
+
+#[cfg(test)]
+mod pane_status_tests {
+    use super::*;
+
+    #[test]
+    fn parse_maps_synonyms_and_unknown() {
+        assert_eq!(parse_pane_status("busy"), PaneAgentStatus::Working);
+        assert_eq!(parse_pane_status("  Working "), PaneAgentStatus::Working);
+        assert_eq!(parse_pane_status("permission"), PaneAgentStatus::WaitingApprove);
+        assert_eq!(parse_pane_status("waiting"), PaneAgentStatus::WaitingInput);
+        assert_eq!(parse_pane_status("done"), PaneAgentStatus::Idle);
+        assert_eq!(parse_pane_status("rate-limit"), PaneAgentStatus::RateLimited);
+        assert_eq!(parse_pane_status(""), PaneAgentStatus::Unknown);
+        assert_eq!(parse_pane_status("something-else"), PaneAgentStatus::Unknown);
+    }
+
+    #[test]
+    fn needs_attention_matches_kebab_and_serialization() {
+        for (status, kebab, attn) in [
+            (PaneAgentStatus::Working, "working", false),
+            (PaneAgentStatus::WaitingInput, "waiting-input", true),
+            (PaneAgentStatus::WaitingApprove, "waiting-approve", true),
+            (PaneAgentStatus::Idle, "idle", false),
+            (PaneAgentStatus::Error, "error", true),
+            (PaneAgentStatus::RateLimited, "rate-limited", true),
+            (PaneAgentStatus::Parked, "parked", false),
+            (PaneAgentStatus::Unknown, "unknown", false),
+        ] {
+            assert_eq!(status.as_str(), kebab);
+            assert_eq!(status.to_string(), kebab);
+            assert_eq!(serde_json::to_string(&status).unwrap(), format!("\"{kebab}\""));
+            assert_eq!(status.needs_attention(), attn);
+        }
+    }
+
+    #[test]
+    fn severity_orders_attention_states_above_the_rest() {
+        // The four attention-worthy states must outrank the calm ones so a
+        // session row bubbles the state that needs the user.
+        let attention = [
+            PaneAgentStatus::WaitingApprove,
+            PaneAgentStatus::WaitingInput,
+            PaneAgentStatus::Error,
+            PaneAgentStatus::RateLimited,
+        ];
+        let calm = [
+            PaneAgentStatus::Working,
+            PaneAgentStatus::Idle,
+            PaneAgentStatus::Parked,
+            PaneAgentStatus::Unknown,
+        ];
+        let min_attention = attention.iter().map(|s| s.severity()).min().unwrap();
+        let max_calm = calm.iter().map(|s| s.severity()).max().unwrap();
+        assert!(min_attention > max_calm);
+        assert_eq!(PaneAgentStatus::WaitingApprove.severity(), 7);
+    }
+
+    #[test]
+    fn hook_attention_flag_is_authoritative_in_both_directions() {
+        // Explicit "clear" suppresses even an attention-worthy status...
+        assert!(!attention_from_hook("clear", PaneAgentStatus::Error));
+        assert!(!attention_from_hook("none", PaneAgentStatus::WaitingApprove));
+        // ...an explicit truthy value raises even a calm status...
+        assert!(attention_from_hook("yes", PaneAgentStatus::Working));
+        // ...and an unset flag falls back to the status implication.
+        assert!(attention_from_hook("", PaneAgentStatus::WaitingApprove));
+        assert!(!attention_from_hook("  ", PaneAgentStatus::Working));
+    }
 }

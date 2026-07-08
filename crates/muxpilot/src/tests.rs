@@ -311,7 +311,7 @@ fn native_entries_merge_workspace_capabilities() {
                     role: String::new(),
                     agent: Some(AgentState {
                         kind: "codex".to_string(),
-                        status: "busy".to_string(),
+                        status: PaneAgentStatus::Working,
                         source: AgentStateSource::Process,
                         confidence: 80,
                         attention: false,
