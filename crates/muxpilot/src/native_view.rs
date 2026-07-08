@@ -347,6 +347,20 @@ fn draw_status(
     set_frame_segment(&mut frame[0], 0, cols, "", theme.title);
     set_frame_segment(&mut frame[0], 0, brand_w, &brand_text, theme.brand);
 
+    // Version tag in the dim status style right after the brand, sourced from the
+    // crate version at build time so the menu always reflects the running binary.
+    let version_text = format!(" v{}", env!("CARGO_PKG_VERSION"));
+    let version_w = display_width(&version_text);
+    if cols > brand_w {
+        set_frame_segment(
+            &mut frame[0],
+            brand_w,
+            (cols - brand_w).min(version_w),
+            &version_text,
+            theme.title,
+        );
+    }
+
     let query = view.filter.text();
     let filter_note = if view.filter.is_empty() {
         String::new()
@@ -377,7 +391,7 @@ fn draw_status(
         "  {shown}/{total} · {}{filter_note}{fleet_note}",
         view.mode.label(),
     );
-    let status_col = brand_w;
+    let status_col = (brand_w + version_w).min(cols);
     if cols > status_col {
         set_frame_segment(
             &mut frame[0],
