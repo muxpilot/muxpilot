@@ -14,13 +14,14 @@ pub(crate) enum NativeGroup {
 
 impl NativeGroup {
     pub(crate) fn label(self) -> &'static str {
+        let l = crate::ui::labels();
         match self {
-            Self::Running => "RUNNING",
-            Self::Configured => "CONFIGURED",
-            Self::Directories => "DIRS",
-            Self::AgentNeedsYou => "NEEDS YOU",
-            Self::AgentWorking => "WORKING",
-            Self::AgentQuiet => "QUIET",
+            Self::Running => l.group_running,
+            Self::Configured => l.group_configured,
+            Self::Directories => l.group_dirs,
+            Self::AgentNeedsYou => l.group_needs_you,
+            Self::AgentWorking => l.group_working,
+            Self::AgentQuiet => l.group_quiet,
         }
     }
 
@@ -202,11 +203,12 @@ pub(crate) enum PickerMode {
 
 impl PickerMode {
     pub(crate) fn label(self) -> &'static str {
+        let l = crate::ui::labels();
         match self {
-            Self::Sessions => "sessions",
-            Self::Agents => "agents",
-            Self::Layouts => "layouts",
-            Self::Dirs => "dirs",
+            Self::Sessions => l.mode_sessions,
+            Self::Agents => l.mode_agents,
+            Self::Layouts => l.mode_layouts,
+            Self::Dirs => l.mode_dirs,
         }
     }
 
@@ -217,17 +219,6 @@ impl PickerMode {
             Self::Agents => "a",
             Self::Layouts => "x",
             Self::Dirs => "d",
-        }
-    }
-
-    /// Resolve a key press to a mode, so a plain `s`/`a`/`x`/`d` switches modes.
-    pub(crate) fn from_key(ch: char) -> Option<Self> {
-        match ch {
-            's' => Some(Self::Sessions),
-            'a' => Some(Self::Agents),
-            'x' => Some(Self::Layouts),
-            'd' => Some(Self::Dirs),
-            _ => None,
         }
     }
 

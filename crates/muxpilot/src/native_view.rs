@@ -342,16 +342,16 @@ fn draw_status(
     total: usize,
     theme: &Theme,
 ) {
-    let brand = "  muxpilot";
-    let brand_w = display_width(brand).min(cols);
+    let brand_text = format!("  {}", labels().brand);
+    let brand_w = display_width(&brand_text).min(cols);
     set_frame_segment(&mut frame[0], 0, cols, "", theme.title);
-    set_frame_segment(&mut frame[0], 0, brand_w, brand, theme.brand);
+    set_frame_segment(&mut frame[0], 0, brand_w, &brand_text, theme.brand);
 
     let query = view.filter.text();
     let filter_note = if view.filter.is_empty() {
         String::new()
     } else {
-        format!("  ⌕ {query}")
+        format!("  {} {query}", GLYPHS.filter)
     };
     // Fleet summary (T4): waiting first — it's the count that most needs the user.
     let fleet = view.fleet;
@@ -430,7 +430,7 @@ fn draw_entry_row(
     set_frame_segment(frame_line, 0, list_width, "", row_style);
 
     // Marker (accent bar on the selected row).
-    let marker = if selected { "▍" } else { " " };
+    let marker = if selected { GLYPHS.marker } else { " " };
     let marker_style = if selected { theme.marker } else { theme.panel };
     set_frame_segment(frame_line, 0, 1, marker, marker_style);
 
@@ -478,13 +478,13 @@ fn draw_window_row(
     set_frame_segment(frame_line, 0, list_width, "", row_style);
 
     // Accent marker on the selected row (matches entry rows).
-    let marker = if selected { "▍" } else { " " };
+    let marker = if selected { GLYPHS.marker } else { " " };
     let marker_style = if selected { theme.marker } else { theme.panel };
     set_frame_segment(frame_line, 0, 1, marker, marker_style);
 
     // Tree connector in the glyph gutter: `└`/`├` then `─`, so the window name
     // aligns exactly under the parent session name at PREFIX.
-    let connector = if is_last { "└─" } else { "├─" };
+    let connector = if is_last { GLYPHS.tree_last } else { GLYPHS.tree_mid };
     let conn_style = if selected { theme.selected } else { theme.group };
     set_frame_segment(frame_line, 2, 2, connector, conn_style);
 
@@ -520,13 +520,13 @@ fn draw_pane_row(
     let row_style = if selected { theme.selected } else { theme.panel };
     set_frame_segment(frame_line, 0, list_width, "", row_style);
 
-    let marker = if selected { "▍" } else { " " };
+    let marker = if selected { GLYPHS.marker } else { " " };
     let marker_style = if selected { theme.marker } else { theme.panel };
     set_frame_segment(frame_line, 0, 1, marker, marker_style);
 
     // Connector inset one level deeper than a window child (cols 4-5), so panes
     // visibly nest under their window.
-    let connector = if is_last { "└─" } else { "├─" };
+    let connector = if is_last { GLYPHS.tree_last } else { GLYPHS.tree_mid };
     let conn_style = if selected { theme.selected } else { theme.group };
     set_frame_segment(frame_line, 4, 2, connector, conn_style);
 
@@ -564,7 +564,7 @@ fn draw_preview(
         &mut frame[body_start],
         preview_col,
         preview_width,
-        "  details",
+        &format!("  {}", labels().details),
         theme.panel_header,
     );
     let Some(entry) = entry else { return };
@@ -686,7 +686,7 @@ pub(crate) fn draw_native_picker(
     if let Some(layout) = layout {
         if layout.preview {
             for frame_row in frame.iter_mut().take(body_end.min(rows)).skip(body_start) {
-                set_frame_segment(frame_row, layout.divider_col, 1, "│", theme.divider);
+                set_frame_segment(frame_row, layout.divider_col, 1, GLYPHS.divider, theme.divider);
             }
             let selected = display
                 .get(cursor_disp)
@@ -732,18 +732,19 @@ fn draw_help(frame: &mut [String], cols: usize, rows: usize, scroll: usize, them
     // Title doubles as a scroll indicator when there's more above/below.
     let more_above = scroll > 0;
     let more_below = scroll + avail < body.len();
+    let help = labels().help;
     let title = match (more_above, more_below) {
-        (true, true) => "help ↕",
-        (false, true) => "help ↓",
-        (true, false) => "help ↑",
-        (false, false) => "help",
+        (true, true) => format!("{help} ↕"),
+        (false, true) => format!("{help} ↓"),
+        (true, false) => format!("{help} ↑"),
+        (false, false) => help.to_string(),
     };
     if rows > 1 {
         set_frame_segment(
             &mut frame[1],
             0,
             cols,
-            &section_title(title, cols),
+            &section_title(&title, cols),
             theme.panel_header,
         );
     }
@@ -768,28 +769,31 @@ fn draw_footer(
     let last = rows - 1;
     if view.edit_filter {
         let footer = format!(
-            "  FILTER: {}   ⏎ open   Esc normal   C-w word   C-u clear",
-            view.filter.display_with_cursor()
+            "  {}: {}   ⏎ {}   Esc normal   C-w word   C-u clear",
+            labels().filter_prompt,
+            view.filter.display_with_cursor(),
+            labels().action_open,
         );
         set_frame_segment(&mut frame[last], 0, cols, &footer, theme.filter_active);
         return;
     }
     // A stable `Sessions · Agents · Layouts · Dirs` switcher plus the actions for
     // the current mode. footer_keys truncates from the right on narrow terminals.
+    let l = labels();
     let mut pairs: Vec<(&str, &str)> = Vec::new();
     pairs.push(match view.mode {
-        PickerMode::Dirs | PickerMode::Layouts => ("⏎", "start"),
-        _ => ("⏎", "open"),
+        PickerMode::Dirs | PickerMode::Layouts => ("⏎", l.action_start),
+        _ => ("⏎", l.action_open),
     });
     for m in PickerMode::ALL {
         pairs.push((m.key_label(), m.label()));
     }
     if view.mode == PickerMode::Sessions {
-        pairs.push(("l", "tree"));
+        pairs.push(("l", l.action_tree));
     }
-    pairs.push(("/", "filter"));
-    pairs.push(("?", "help"));
-    pairs.push(("q", "close"));
+    pairs.push(("/", l.action_filter));
+    pairs.push(("?", l.action_help));
+    pairs.push(("q", l.action_close));
     let footer = footer_keys(&pairs, cols, theme);
     set_frame_raw_segment(&mut frame[last], 0, &footer);
 }

@@ -41,6 +41,8 @@ pub(crate) use demo::build_demo_entries;
 mod fzf;
 use fzf::{shell_single_quote, FZF_FOOTER, FZF_HEADER, FZF_HELP};
 
+mod keymap;
+
 mod native_picker;
 use native_picker::select_native;
 

@@ -94,13 +94,13 @@ pub(crate) fn entry_columns(entry: &NativeEntry, width: usize) -> String {
 pub(crate) fn window_columns(win: &WindowRow, width: usize) -> String {
     let mut caps = format!("{}p", win.panes);
     if win.agents > 0 {
-        caps.push_str(&format!(" ◍ {}", win.agents));
+        caps.push_str(&format!(" {} {}", super::labels::GLYPHS.agents, win.agents));
     }
     // A one-agent window surfaces that agent's state inline (glyph + short
     // label); multi-agent windows expand to show each pane's own state instead.
     let status = match win.inline_agent_status() {
         Some(inline) => inline.to_string(),
-        None if win.active => "active".to_string(),
+        None if win.active => super::labels::labels().status_active.to_string(),
         None => String::new(),
     };
     columns_for(width, &win.name, &caps, &status, &win.activity)

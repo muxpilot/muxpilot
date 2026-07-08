@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use crate::model::{DirItem, Layout, MenuModel, Selection};
 use crate::native_state::{NativeAction, NativeEntry, NativeGroup};
 use crate::snapshot::{AgentState, PaneAgentStatus, TmuxPane, TmuxSnapshot, TmuxWindow};
-use crate::ui::{entry_sort_name, spinner_frame};
+use crate::ui::{entry_sort_name, labels, spinner_frame, GLYPHS};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct WorkspaceRow {
@@ -218,7 +218,7 @@ fn capability_icons(row: &WorkspaceRow) -> String {
         icons.push(format!("{}w", row.windows));
     }
     if !row.agents.is_empty() {
-        icons.push(format!("◍ {}", row.agents.len()));
+        icons.push(format!("{} {}", GLYPHS.agents, row.agents.len()));
     }
     icons.join(" ")
 }
@@ -280,13 +280,13 @@ fn workspace_activity(row: &WorkspaceRow) -> String {
         return format!("{} {}", status.glyph(), status.short_label());
     }
     if row.session.is_some() {
-        return "active".to_string();
+        return labels().status_active.to_string();
     }
     if row.layout.is_some() || row.project.is_some() {
         // The group header already says CONFIGURED — name the source instead of
         // echoing it, so the status column tells the user *where* the config
         // comes from (a tmuxinator layout/project).
-        return "tmuxinator".to_string();
+        return labels().status_tmuxinator.to_string();
     }
     String::new()
 }
@@ -367,11 +367,11 @@ fn capability_detail(row: &WorkspaceRow) -> String {
 
 fn workspace_line(row: &WorkspaceRow) -> String {
     let state = if row.current {
-        "◆"
+        GLYPHS.current
     } else if row.session.is_some() {
-        "●"
+        GLYPHS.running
     } else {
-        "○"
+        GLYPHS.idle
     };
     format!(
         "{state} {} · {} · {} · {}",
@@ -583,7 +583,7 @@ pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
         let is_running = l.running || running.contains(l.session.as_str());
         entries.push(layout_entry(
             &l.session,
-            "layout",
+            labels().kind_layout,
             is_running,
             Selection::Layout {
                 session: l.session.clone(),
@@ -595,7 +595,7 @@ pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
         let is_running = running.contains(p.as_str());
         entries.push(layout_entry(
             p,
-            "project",
+            labels().kind_project,
             is_running,
             Selection::Project(p.clone()),
         ));
@@ -605,8 +605,12 @@ pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
 }
 
 fn layout_entry(name: &str, kind: &str, running: bool, selection: Selection) -> NativeEntry {
-    let glyph = if running { "●" } else { "○" };
-    let status = if running { "running" } else { "stopped" };
+    let glyph = if running { GLYPHS.running } else { GLYPHS.idle };
+    let status = if running {
+        labels().status_running
+    } else {
+        labels().status_stopped
+    };
     let line = format!("{glyph} {name} · {kind} · {status} · -");
     let detail = [
         "Layout".to_string(),
@@ -719,9 +723,9 @@ pub(crate) fn build_directory_entries(model: &MenuModel) -> Vec<NativeEntry> {
                 ""
             };
             let activity = if dir.has_local_config {
-                "configured"
+                labels().dir_configured
             } else {
-                "bare"
+                labels().dir_bare
             };
             let detail = [
                 "Directory",
@@ -739,7 +743,7 @@ pub(crate) fn build_directory_entries(model: &MenuModel) -> Vec<NativeEntry> {
             ]
             .join("\n");
             NativeEntry::new(
-                format!("○ {} · {caps} · {activity} · -", dir.display),
+                format!("{} {} · {caps} · {activity} · -", GLYPHS.idle, dir.display),
                 detail,
                 NativeAction::Select(Selection::Dir {
                     full_path: dir.path,

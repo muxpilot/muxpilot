@@ -1050,3 +1050,46 @@ fn help_scroll_is_needed_on_short_terminals_only() {
     // A tall terminal shows everything at once — no scroll offset possible.
     assert_eq!(crate::native_view::help_max_scroll(1000), 0);
 }
+
+#[test]
+fn keymap_resolves_command_bindings() {
+    use crate::keymap::{Action, Keymap};
+    use crate::native_state::PickerMode;
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let km = Keymap::defaults();
+    let none = KeyModifiers::NONE;
+    let ctrl = KeyModifiers::CONTROL;
+
+    assert_eq!(km.resolve(KeyCode::Char('j'), none), Some(Action::Down));
+    assert_eq!(km.resolve(KeyCode::Down, none), Some(Action::Down));
+    assert_eq!(km.resolve(KeyCode::Enter, none), Some(Action::Open));
+    // SHIFT is ignored because the Char already carries its case.
+    assert_eq!(
+        km.resolve(KeyCode::Char('G'), KeyModifiers::SHIFT),
+        Some(Action::Bottom)
+    );
+    // `d` and Ctrl-d are distinct bindings disambiguated by the modifier.
+    assert_eq!(
+        km.resolve(KeyCode::Char('d'), none),
+        Some(Action::SwitchMode(PickerMode::Dirs))
+    );
+    assert_eq!(km.resolve(KeyCode::Char('d'), ctrl), Some(Action::PageDown));
+    assert_eq!(km.resolve(KeyCode::Char('a'), none), Some(Action::SwitchMode(PickerMode::Agents)));
+    assert_eq!(km.resolve(KeyCode::Char('c'), ctrl), Some(Action::Quit));
+    assert_eq!(km.resolve(KeyCode::Tab, none), Some(Action::NextMode));
+    // Unbound keys resolve to nothing.
+    assert_eq!(km.resolve(KeyCode::Char('z'), none), None);
+}
+
+#[test]
+fn labels_and_glyphs_are_centralized() {
+    // The label table drives mode/group names, so the picker chrome and the
+    // strings module can never drift.
+    use crate::native_state::{NativeGroup, PickerMode};
+    assert_eq!(PickerMode::Sessions.label(), crate::ui::labels().mode_sessions);
+    assert_eq!(NativeGroup::AgentNeedsYou.label(), crate::ui::labels().group_needs_you);
+    // Glyph constants are non-empty single homes for the markers.
+    assert!(!crate::ui::GLYPHS.running.is_empty());
+    assert!(!crate::ui::GLYPHS.tree_last.is_empty());
+}

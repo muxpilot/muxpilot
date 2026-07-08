@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal;
 
+use crate::keymap::{Action, Keymap};
 use crate::model::{build_menu_lines, parse_selection, MenuModel, Selection};
 use crate::native_state::{FilterInput, NativeAction, NativeEntry, PickerMode, SearchMode};
 use crate::native_view::{
@@ -35,6 +36,45 @@ fn entries_for_mode(mode: PickerMode, model: &MenuModel, snapshot: &TmuxSnapshot
     }
 }
 
+/// The `Selection` the cursor currently points at, resolving through the tree
+/// level (session / window / pane). Shared by Enter in both command and
+/// filter-edit modes so they can never disagree.
+fn selection_at(
+    selectables: &[Selectable],
+    filtered: &[usize],
+    entries: &[NativeEntry],
+    cursor: usize,
+) -> Option<Selection> {
+    match selectables.get(cursor)? {
+        Selectable::Entry(pos) => {
+            let entry = &entries[*filtered.get(*pos)?];
+            match &entry.action {
+                NativeAction::Select(selection) => Some(selection.clone()),
+            }
+        }
+        Selectable::Window { pos, win } => {
+            let entry = &entries[*filtered.get(*pos)?];
+            let session = entry.session.clone()?;
+            let window = entry.windows.get(*win)?;
+            Some(Selection::Window {
+                session,
+                window_id: window.id.clone(),
+            })
+        }
+        Selectable::Pane { pos, win, pane } => {
+            let entry = &entries[*filtered.get(*pos)?];
+            let session = entry.session.clone()?;
+            let window = entry.windows.get(*win)?;
+            let pane_row = window.pane_rows.get(*pane)?;
+            Some(Selection::Pane {
+                session,
+                window_id: window.id.clone(),
+                pane_id: pane_row.id.clone(),
+            })
+        }
+    }
+}
+
 pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>, AppError> {
     if !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         let menu = build_menu_lines(model).join("\n");
@@ -44,6 +84,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
     }
 
     let _guard = CrosstermGuard::enter()?;
+    let keymap = Keymap::defaults();
     let mut snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
     let mut mode = PickerMode::Sessions;
     let mut entries = entries_for_mode(mode, model, &snapshot);
@@ -104,164 +145,110 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             continue;
         }
 
-        match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(None);
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+
+        // Ctrl-C quits from any sub-mode.
+        if ctrl && key.code == KeyCode::Char('c') {
+            return Ok(None);
+        }
+
+        // Filter-edit mode owns the keyboard: readline-style line editing.
+        if edit_filter {
+            match key.code {
+                KeyCode::Esc => edit_filter = false,
+                KeyCode::Enter => {
+                    if let Some(sel) = selection_at(&selectables, &filtered, &entries, cursor) {
+                        return Ok(Some(sel));
+                    }
+                }
+                KeyCode::Char('u') if ctrl => {
+                    filter.clear();
+                    cursor = 0;
+                }
+                KeyCode::Char('w') if ctrl => {
+                    filter.delete_word_before_cursor();
+                    cursor = 0;
+                }
+                KeyCode::Char('a') if ctrl => filter.move_start(),
+                KeyCode::Char('e') if ctrl => filter.move_end(),
+                KeyCode::Char('b') if ctrl => filter.move_left(),
+                KeyCode::Char('f') if ctrl => filter.move_right(),
+                KeyCode::Left => filter.move_left(),
+                KeyCode::Right => filter.move_right(),
+                KeyCode::Backspace => {
+                    filter.backspace();
+                    cursor = 0;
+                }
+                KeyCode::Char(ch) if !ctrl => {
+                    filter.insert(ch);
+                    cursor = 0;
+                }
+                _ => {}
             }
-            KeyCode::Char('u')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && edit_filter && !show_help =>
-            {
-                filter.clear();
-                cursor = 0;
+            continue;
+        }
+
+        // Help overlay owns the keyboard: scrolling only.
+        if show_help {
+            let (_, rows) = terminal::size().unwrap_or((100, 30));
+            let rows = rows as usize;
+            let half = (picker_body_rows(rows) / 2).max(1);
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('?') => show_help = false,
+                KeyCode::Down | KeyCode::Char('j') => {
+                    help_scroll = (help_scroll + 1).min(help_max_scroll(rows));
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    help_scroll = help_scroll.saturating_sub(1);
+                }
+                KeyCode::Char('g') => help_scroll = 0,
+                KeyCode::Char('G') => help_scroll = help_max_scroll(rows),
+                KeyCode::Char('d') if ctrl => {
+                    help_scroll = (help_scroll + half).min(help_max_scroll(rows));
+                }
+                KeyCode::Char('u') if ctrl => help_scroll = help_scroll.saturating_sub(half),
+                _ => {}
             }
-            KeyCode::Char('w')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && edit_filter && !show_help =>
-            {
-                filter.delete_word_before_cursor();
-                cursor = 0;
-            }
-            KeyCode::Char('a')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && edit_filter && !show_help =>
-            {
-                filter.move_start();
-            }
-            KeyCode::Char('e')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && edit_filter && !show_help =>
-            {
-                filter.move_end();
-            }
-            KeyCode::Left if edit_filter && !show_help => {
-                filter.move_left();
-            }
-            KeyCode::Right if edit_filter && !show_help => {
-                filter.move_right();
-            }
-            KeyCode::Char('b')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && edit_filter && !show_help =>
-            {
-                filter.move_left();
-            }
-            KeyCode::Char('f')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && edit_filter && !show_help =>
-            {
-                filter.move_right();
-            }
-            KeyCode::Esc => {
-                if show_help {
-                    show_help = false;
-                } else if edit_filter {
-                    edit_filter = false;
-                } else {
-                    return Ok(None);
+            continue;
+        }
+
+        // Command mode: Esc closes the picker; every other key resolves through
+        // the (reconfigurable) keymap to a semantic Action.
+        if key.code == KeyCode::Esc {
+            return Ok(None);
+        }
+        match keymap.resolve(key.code, key.modifiers) {
+            Some(Action::Open) => {
+                if let Some(sel) = selection_at(&selectables, &filtered, &entries, cursor) {
+                    return Ok(Some(sel));
                 }
             }
-            KeyCode::Backspace if edit_filter && !show_help => {
-                filter.backspace();
-                cursor = 0;
+            Some(Action::Quit) => return Ok(None),
+            Some(Action::Down) => {
+                if !selectables.is_empty() {
+                    cursor = (cursor + 1).min(selectables.len() - 1);
+                }
             }
-            KeyCode::Char(ch)
-                if edit_filter && !show_help && !key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
-                filter.insert(ch);
-                cursor = 0;
+            Some(Action::Up) => cursor = cursor.saturating_sub(1),
+            Some(Action::Top) => cursor = 0,
+            Some(Action::Bottom) => {
+                if !selectables.is_empty() {
+                    cursor = selectables.len() - 1;
+                }
             }
-            KeyCode::Char('?') if !edit_filter => {
-                show_help = !show_help;
-                help_scroll = 0;
-            }
-            // Scroll the help overlay so long help is reachable on short terminals.
-            KeyCode::Down | KeyCode::Char('j') if show_help => {
-                let (_, rows) = terminal::size().unwrap_or((100, 30));
-                help_scroll = (help_scroll + 1).min(help_max_scroll(rows as usize));
-            }
-            KeyCode::Up | KeyCode::Char('k') if show_help => {
-                help_scroll = help_scroll.saturating_sub(1);
-            }
-            KeyCode::Char('g') if show_help => help_scroll = 0,
-            KeyCode::Char('G') if show_help => {
-                let (_, rows) = terminal::size().unwrap_or((100, 30));
-                help_scroll = help_max_scroll(rows as usize);
-            }
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) && show_help => {
-                let (_, rows) = terminal::size().unwrap_or((100, 30));
-                let step = (picker_body_rows(rows as usize) / 2).max(1);
-                help_scroll = (help_scroll + step).min(help_max_scroll(rows as usize));
-            }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) && show_help => {
-                help_scroll = help_scroll.saturating_sub({
+            Some(Action::PageDown) => {
+                if !selectables.is_empty() {
                     let (_, rows) = terminal::size().unwrap_or((100, 30));
-                    (picker_body_rows(rows as usize) / 2).max(1)
-                });
+                    let step = (picker_body_rows(rows as usize) / 2).max(1);
+                    cursor = (cursor + step).min(selectables.len() - 1);
+                }
             }
-            KeyCode::Char('t') if !edit_filter && !show_help => theme = theme.toggled(),
-            KeyCode::Char('q') if !edit_filter && !show_help => return Ok(None),
-            KeyCode::Tab if !show_help => {
-                mode = mode.next();
-                entries = entries_for_mode(mode, model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            KeyCode::Char('/') if !show_help => edit_filter = true,
-            KeyCode::Char('r') if !edit_filter && !show_help => {
-                snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
-                fleet = fleet_summary(&snapshot);
-                entries = entries_for_mode(mode, model, &snapshot);
-                cursor = 0;
-            }
-            // Footer command keys `s`/`a`/`x`/`d` jump straight to a mode.
-            KeyCode::Char(ch)
-                if !edit_filter
-                    && !show_help
-                    && !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && PickerMode::from_key(ch).is_some_and(|m| m != mode) =>
-            {
-                mode = PickerMode::from_key(ch).unwrap();
-                entries = entries_for_mode(mode, model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            KeyCode::Down | KeyCode::Char('j') if !show_help && !selectables.is_empty() => {
-                cursor = (cursor + 1).min(selectables.len() - 1);
-            }
-            KeyCode::Up | KeyCode::Char('k') if !show_help => {
-                cursor = cursor.saturating_sub(1);
-            }
-            KeyCode::Char('g') if !edit_filter && !show_help => {
-                cursor = 0;
-            }
-            KeyCode::Char('G') if !edit_filter && !show_help && !selectables.is_empty() => {
-                cursor = selectables.len() - 1;
-            }
-            KeyCode::Char('d')
-                if key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !edit_filter
-                    && !show_help
-                    && !selectables.is_empty() =>
-            {
-                let (_, rows) = terminal::size().unwrap_or((100, 30));
-                let step = (picker_body_rows(rows as usize) / 2).max(1);
-                cursor = (cursor + step).min(selectables.len() - 1);
-            }
-            KeyCode::Char('u')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && !edit_filter && !show_help =>
-            {
+            Some(Action::PageUp) => {
                 let (_, rows) = terminal::size().unwrap_or((100, 30));
                 let step = (picker_body_rows(rows as usize) / 2).max(1);
                 cursor = cursor.saturating_sub(step);
             }
-            // Tree: Space and l/→ both toggle the selected session open/closed
-            // into its windows; h/← collapses.
-            KeyCode::Char(' ') if !edit_filter && !show_help => {
-                cursor = apply_tree_key(
-                    TreeKey::Toggle,
-                    &selectables,
-                    &entries,
-                    &filtered,
-                    &mut expanded,
-                    cursor,
-                );
-            }
-            KeyCode::Char('l') | KeyCode::Right if !edit_filter && !show_help => {
+            Some(Action::ExpandLevel) => {
                 cursor = apply_tree_key(
                     TreeKey::EntryToggle,
                     &selectables,
@@ -271,7 +258,17 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
                     cursor,
                 );
             }
-            KeyCode::Char('h') | KeyCode::Left if !edit_filter && !show_help => {
+            Some(Action::ToggleLevel) => {
+                cursor = apply_tree_key(
+                    TreeKey::Toggle,
+                    &selectables,
+                    &entries,
+                    &filtered,
+                    &mut expanded,
+                    cursor,
+                );
+            }
+            Some(Action::CollapseLevel) => {
                 cursor = apply_tree_key(
                     TreeKey::Collapse,
                     &selectables,
@@ -281,45 +278,33 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
                     cursor,
                 );
             }
-            KeyCode::Enter if !show_help => match selectables.get(cursor) {
-                Some(Selectable::Entry(pos)) => {
-                    if let Some(entry_idx) = filtered.get(*pos) {
-                        match &entries[*entry_idx].action {
-                            NativeAction::Select(selection) => return Ok(Some(selection.clone())),
-                        }
-                    }
+            Some(Action::SwitchMode(target)) => {
+                if target != mode {
+                    mode = target;
+                    entries = entries_for_mode(mode, model, &snapshot);
+                    filter.clear();
+                    cursor = 0;
                 }
-                Some(Selectable::Window { pos, win }) => {
-                    if let Some(entry) = filtered.get(*pos).map(|idx| &entries[*idx]) {
-                        if let (Some(session), Some(window)) =
-                            (entry.session.clone(), entry.windows.get(*win))
-                        {
-                            return Ok(Some(Selection::Window {
-                                session,
-                                window_id: window.id.clone(),
-                            }));
-                        }
-                    }
-                }
-                // A pane leaf jumps straight to that exact pane.
-                Some(Selectable::Pane { pos, win, pane }) => {
-                    if let Some(entry) = filtered.get(*pos).map(|idx| &entries[*idx]) {
-                        if let (Some(session), Some(window)) =
-                            (entry.session.clone(), entry.windows.get(*win))
-                        {
-                            if let Some(pane_row) = window.pane_rows.get(*pane) {
-                                return Ok(Some(Selection::Pane {
-                                    session,
-                                    window_id: window.id.clone(),
-                                    pane_id: pane_row.id.clone(),
-                                }));
-                            }
-                        }
-                    }
-                }
-                None => {}
-            },
-            _ => {}
+            }
+            Some(Action::NextMode) => {
+                mode = mode.next();
+                entries = entries_for_mode(mode, model, &snapshot);
+                filter.clear();
+                cursor = 0;
+            }
+            Some(Action::EditFilter) => edit_filter = true,
+            Some(Action::ToggleHelp) => {
+                show_help = true;
+                help_scroll = 0;
+            }
+            Some(Action::ToggleTheme) => theme = theme.toggled(),
+            Some(Action::Refresh) => {
+                snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
+                fleet = fleet_summary(&snapshot);
+                entries = entries_for_mode(mode, model, &snapshot);
+                cursor = 0;
+            }
+            None => {}
         }
     }
 }
