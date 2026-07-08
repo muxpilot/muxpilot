@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Fast tmux workspace picker and agent-aware session menu."
+homepage = "https://muxpilot.n.yatsyk.com"
+readme = "../../README.md"
+keywords = ["tmux", "tui", "cli", "tmuxinator", "sessions"]
+categories = ["command-line-utilities", "development-tools"]
 
 [lib]
 name = "muxpilot"
