@@ -55,7 +55,7 @@ const WINDOW_NAMES: &[&str] = &[
     "notes",
 ];
 
-const AGENT_KINDS: &[&str] = &["claude", "codex", "aider", "opencode"];
+const AGENT_KINDS: &[&str] = &["claude", "codex", "cline", "aider", "opencode"];
 const MODELS: &[&str] = &["opus-4-8", "sonnet-5", "gpt-5.4", "haiku-4-5"];
 const PANE_CMDS: &[&str] = &["zsh", "nvim", "cargo", "node", "git", "htop"];
 const DEMO_STATUSES: &[PaneAgentStatus] = &[
@@ -201,9 +201,9 @@ pub(crate) fn build_demo_entries(count: usize) -> Vec<NativeEntry> {
         } else if running {
             "active"
         } else {
-            // Not "configured" — that just echoes the CONFIGURED group header.
-            // Name the source (matches the real picker's status column).
-            "tmuxinator"
+            // Not "configured"/"tmuxinator" — that echoes the TMUXINATOR group
+            // header. Name the kind (matches the real picker's status column).
+            "layout"
         };
 
         let last = if running { last_activity_label(i) } else { "-" };

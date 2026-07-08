@@ -362,7 +362,10 @@ fn command_basename(command: &str) -> &str {
 
 fn detect_agent_name(text: &str) -> Option<&'static str> {
     let lower = text.to_ascii_lowercase();
-    ["claude", "codex", "opencode", "aider", "gemini", "amp"]
+    // `cline` is listed before `claude`: a cline process often has a `claude`
+    // child/model token, and detect_process_agent walks descendants — matching
+    // the pane's own `cline` first keeps it from being mislabeled `claude`.
+    ["cline", "claude", "codex", "opencode", "aider", "gemini", "amp"]
         .into_iter()
         .find(|&name| {
             lower

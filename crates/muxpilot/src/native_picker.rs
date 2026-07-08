@@ -91,6 +91,9 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
     let mut fleet = fleet_summary(&snapshot);
     let mut filter = FilterInput::default();
     let mut cursor = 0usize;
+    // On first render, home the cursor onto the current workspace (◆) instead of
+    // the top row, so the picker opens on "where you are". Set once.
+    let mut cursor_homed = false;
     let mut show_help = false;
     let mut help_scroll = 0usize;
     let mut edit_filter = false;
@@ -108,6 +111,16 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             })
             .collect();
         let selectables = selectable_rows(&entries, &filtered, &expanded);
+        if !cursor_homed {
+            cursor_homed = true;
+            // The current workspace carries the ◆ glyph as the first char of its line.
+            if let Some(idx) = selectables.iter().position(|s| {
+                matches!(s, Selectable::Entry(pos)
+                    if entries[filtered[*pos]].line.starts_with('◆'))
+            }) {
+                cursor = idx;
+            }
+        }
         if cursor >= selectables.len() {
             cursor = selectables.len().saturating_sub(1);
         }
@@ -129,12 +142,16 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
 
         let animate_visible_agents = visible_has_agent(&entries, &filtered, &expanded, cursor);
         let poll_timeout = if animate_visible_agents {
-            Duration::from_millis(500)
+            // Slightly oversample the 160ms spinner frame period so the braille
+            // spinner animates smoothly rather than skipping frames.
+            Duration::from_millis(120)
         } else {
             Duration::from_secs(3600)
         };
         if !event::poll(poll_timeout).map_err(|e| terminal_error("failed to poll key", e))? {
-            // Timeout is used only to advance visible agent spinners.
+            // Timeout: rebuild entries from the cached snapshot (no re-scrape) so
+            // the time-based agent spinner advances a frame, then redraw.
+            entries = entries_for_mode(mode, model, &snapshot);
             continue;
         }
         let event = event::read().map_err(|e| terminal_error("failed to read key", e))?;

@@ -47,7 +47,6 @@ pub(crate) struct Labels {
     pub(crate) status_running: &'static str,
     pub(crate) status_stopped: &'static str,
     pub(crate) status_active: &'static str,
-    pub(crate) status_tmuxinator: &'static str,
 
     // Layout-mode kind tags.
     pub(crate) kind_layout: &'static str,
@@ -70,7 +69,7 @@ pub(crate) const EN: Labels = Labels {
     mode_dirs: "dirs",
 
     group_running: "RUNNING",
-    group_configured: "CONFIGURED",
+    group_configured: "TMUXINATOR",
     group_dirs: "DIRS",
     group_needs_you: "NEEDS YOU",
     group_working: "WORKING",
@@ -86,7 +85,6 @@ pub(crate) const EN: Labels = Labels {
     status_running: "running",
     status_stopped: "stopped",
     status_active: "active",
-    status_tmuxinator: "tmuxinator",
 
     kind_layout: "layout",
     kind_project: "project",

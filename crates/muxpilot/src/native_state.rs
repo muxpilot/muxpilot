@@ -484,7 +484,7 @@ pub(crate) fn native_help_body() -> Vec<String> {
         "   tmux session,  windows,  panes, 󰚩 agents".to_string(),
         "  󰐊 tmuxinator layout/project,  directory,  local config".to_string(),
         "  RUNNING active tmux sessions".to_string(),
-        "  CONFIGURED tmuxinator layouts/projects/configured repos".to_string(),
+        "  TMUXINATOR repo-local layouts, saved projects, configured repos".to_string(),
     ]);
     // Agent-state legend — generated from the enum so glyphs/colours never drift
     // from what the picker actually draws. Documents both shape and hue.

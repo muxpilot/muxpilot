@@ -282,11 +282,14 @@ fn workspace_activity(row: &WorkspaceRow) -> String {
     if row.session.is_some() {
         return labels().status_active.to_string();
     }
-    if row.layout.is_some() || row.project.is_some() {
-        // The group header already says CONFIGURED — name the source instead of
-        // echoing it, so the status column tells the user *where* the config
-        // comes from (a tmuxinator layout/project).
-        return labels().status_tmuxinator.to_string();
+    // The group header says TMUXINATOR — name the specific kind here instead of
+    // echoing it, so the status column tells the user which tmuxinator config
+    // this is (a repo-local layout vs a saved global project).
+    if row.layout.is_some() {
+        return labels().kind_layout.to_string();
+    }
+    if row.project.is_some() {
+        return labels().kind_project.to_string();
     }
     String::new()
 }
@@ -324,7 +327,10 @@ pub(crate) fn workspace_detail(row: &WorkspaceRow) -> String {
             }
         }
     }
-    if let Some(path) = &row.path {
+    // Show a location wherever we have one — prefer the pretty `~/…` display
+    // path, falling back to the absolute path. Covers directories, running
+    // sessions with a cwd, and repo-local layouts merged with their directory.
+    if let Some(path) = row.display_path.as_deref().or(row.path.as_deref()) {
         lines.push(format!("Path: {path}"));
     }
     if let Some(layout) = &row.layout {

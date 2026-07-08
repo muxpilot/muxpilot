@@ -685,7 +685,7 @@ fn tree_fixture() -> Vec<NativeEntry> {
     )
     .with_windows("work".to_string(), vec![win("@1", "editor"), win("@2", "server")]);
     let project = NativeEntry::new(
-        "○ notes · · tmuxinator · -".to_string(),
+        "○ notes · · project · -".to_string(),
         "Workspace\nName: notes".to_string(),
         NativeAction::Select(Selection::Project("notes".to_string())),
         vec!["project"],
