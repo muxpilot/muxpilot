@@ -246,7 +246,7 @@ mod tests {
         let cols = [Constraint::Fixed(20), Constraint::Fixed(20)];
         let widths = solve(10, 1, &cols);
         let sum: usize = widths.iter().sum();
-        assert!(sum + 1 <= 10, "must not overflow: {widths:?}");
+        assert!(sum < 10, "must not overflow: {widths:?}");
     }
 
     #[test]
@@ -279,7 +279,7 @@ mod tests {
                 ["", "", ""],
                 ["日本語ワークスペース", "◍12", "5d"],
             ] {
-                let refs: Vec<&str> = cells.iter().copied().collect();
+                let refs: Vec<&str> = cells.to_vec();
                 let row = render_row(&refs, &widths, &aligns, gap);
                 assert_eq!(
                     display_width(&row),
