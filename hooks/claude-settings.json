@@ -1,0 +1,38 @@
+{
+  "//": "MuxPilot agent-state hooks for Claude Code. Merge this `hooks` block into",
+  "//2": "~/.claude/settings.json (NOT settings.local.json — Claude Code ignores that",
+  "//3": "at the user level). Adjust the path to muxpilot-hook.sh if you install it",
+  "//4": "elsewhere. Each command is best-effort and always exits 0.",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh SessionStart" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh UserPromptSubmit" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh PreToolUse" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh PostToolUse" } ] }
+    ],
+    "Notification": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh Notification" } ] }
+    ],
+    "SubagentStart": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh SubagentStart" } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh SubagentStop" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh Stop" } ] }
+    ],
+    "StopFailure": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh StopFailure" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh SessionEnd" } ] }
+    ]
+  }
+}

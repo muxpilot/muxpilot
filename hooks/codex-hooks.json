@@ -1,0 +1,22 @@
+{
+  "//": "MuxPilot agent-state hooks for Codex CLI. Reference from ~/.codex/config.toml",
+  "//2": "with `hooks = true` and `hooks_file = \"~/.codex/hooks.json\"`, or inline the",
+  "//3": "equivalent [[hooks.*]] TOML. Codex ships a smaller hook set than Claude Code",
+  "//4": "(no Notification/SessionEnd/subagents; PostToolUse is Bash-only), so waiting",
+  "//5": "states come mainly from MuxPilot's own screen classification for Codex panes.",
+  "//6": "MUXPILOT_AGENT=codex tags the pane as a Codex agent.",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "MUXPILOT_AGENT=codex bash ~/.muxpilot/muxpilot-hook.sh SessionStart" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "MUXPILOT_AGENT=codex bash ~/.muxpilot/muxpilot-hook.sh UserPromptSubmit" } ] }
+    ],
+    "PostToolUse": [
+      { "hooks": [ { "type": "command", "command": "MUXPILOT_AGENT=codex bash ~/.muxpilot/muxpilot-hook.sh PostToolUse" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "MUXPILOT_AGENT=codex bash ~/.muxpilot/muxpilot-hook.sh Stop" } ] }
+    ]
+  }
+}
