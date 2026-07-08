@@ -1,4 +1,4 @@
-use crate::native_state::{NativeEntry, NativeGroup, SearchMode, Theme, WindowRow};
+use crate::native_state::{NativeEntry, NativeGroup, PaneRow, SearchMode, Theme, WindowRow};
 
 use super::columns::{render_row, solve, Align, Constraint};
 use super::text::{pad_to_width, raw_styled, styled_segment};
@@ -21,10 +21,16 @@ pub(crate) fn entry_glyph(entry: &NativeEntry) -> char {
     entry.line.chars().next().unwrap_or(' ')
 }
 
-/// The workspace name with its leading glyph stripped.
+/// The workspace name with its leading glyph stripped. Every line is built as
+/// `"<glyph> <name> · …"`, so dropping the first whitespace-delimited token
+/// removes whatever state glyph leads it (◆/●/○/◇/×/·/…) — the glyph is drawn
+/// separately in the gutter, so it must not appear again in the name column.
 fn entry_name(entry: &NativeEntry) -> &str {
     let (name, _, _, _) = split_entry_columns(entry);
-    name.trim_start_matches(['◆', '●', '○', '＋']).trim_start()
+    name.split_once(' ')
+        .map(|(_, rest)| rest)
+        .unwrap_or(name)
+        .trim_start()
 }
 
 pub(crate) fn entry_sort_name(entry: &NativeEntry) -> String {
@@ -90,8 +96,21 @@ pub(crate) fn window_columns(win: &WindowRow, width: usize) -> String {
     if win.agents > 0 {
         caps.push_str(&format!(" ◍ {}", win.agents));
     }
-    let status = if win.active { "active" } else { "" };
-    columns_for(width, &win.name, &caps, status, &win.activity)
+    // A one-agent window surfaces that agent's state inline (glyph + short
+    // label); multi-agent windows expand to show each pane's own state instead.
+    let status = match win.inline_agent_status() {
+        Some(inline) => inline.to_string(),
+        None if win.active => "active".to_string(),
+        None => String::new(),
+    };
+    columns_for(width, &win.name, &caps, &status, &win.activity)
+}
+
+/// Column layout for a pane leaf: the agent kind + model (or command) as the
+/// name, its state, and its activity. Built through the same `columns_for` plan
+/// so it aligns with the rows above it.
+pub(crate) fn pane_columns(pane: &PaneRow, width: usize) -> String {
+    columns_for(width, &pane.label, "", &pane.status, &pane.activity)
 }
 
 pub(crate) fn entry_style(entry: &NativeEntry, theme: &Theme) -> &'static str {
@@ -99,6 +118,11 @@ pub(crate) fn entry_style(entry: &NativeEntry, theme: &Theme) -> &'static str {
         NativeGroup::Running if entry.tags.contains(&"agent") => theme.agent,
         NativeGroup::Running => theme.active,
         NativeGroup::Configured | NativeGroup::Directories => theme.ready,
+        // Agents-mode buckets: attention pulls the eye (accent), working is live
+        // (green), quiet recedes (dim).
+        NativeGroup::AgentNeedsYou => theme.current,
+        NativeGroup::AgentWorking => theme.active,
+        NativeGroup::AgentQuiet => theme.ready,
     }
 }
 

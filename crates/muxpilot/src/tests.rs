@@ -542,6 +542,7 @@ fn workspace_detail_includes_window_summaries() {
                 panes: 2,
                 agents: 1,
                 last_activity: Some(100),
+                pane_rows: vec![],
             },
             WindowSummary {
                 index: 1,
@@ -551,6 +552,7 @@ fn workspace_detail_includes_window_summaries() {
                 panes: 1,
                 agents: 0,
                 last_activity: None,
+                pane_rows: vec![],
             },
         ],
         ..Default::default()
@@ -672,6 +674,7 @@ fn tree_fixture() -> Vec<NativeEntry> {
         panes: 1,
         agents: 0,
         activity: "now".to_string(),
+        pane_rows: vec![],
     };
     let session = NativeEntry::new(
         "● work · 2w · active · now".to_string(),
@@ -722,6 +725,72 @@ fn tree_expansion_inserts_window_rows_and_toggles() {
     let cursor = apply_tree_key(TreeKey::Collapse, &sel, &entries, &filtered, &mut expanded, 2);
     assert_eq!(cursor, 0);
     assert!(!expanded.contains("work"));
+    assert_eq!(selectable_rows(&entries, &filtered, &expanded).len(), 2);
+}
+
+#[test]
+fn three_level_tree_expands_multi_pane_window_into_panes() {
+    use crate::native_view::{apply_tree_key, selectable_rows, Selectable, TreeKey};
+    use native_state::{NativeAction, NativeGroup, PaneRow, WindowRow};
+    use std::collections::HashSet;
+
+    // One session with a single two-pane window (the second pane hosts an agent).
+    let window = WindowRow {
+        index: 0,
+        id: "@1".to_string(),
+        name: "editor".to_string(),
+        active: true,
+        panes: 2,
+        agents: 1,
+        activity: "now".to_string(),
+        pane_rows: vec![
+            PaneRow {
+                id: "%1".to_string(),
+                label: "zsh".to_string(),
+                status: String::new(),
+                agent: false,
+                activity: "now".to_string(),
+            },
+            PaneRow {
+                id: "%2".to_string(),
+                label: "claude opus-4-8".to_string(),
+                status: "● work".to_string(),
+                agent: true,
+                activity: "now".to_string(),
+            },
+        ],
+    };
+    let entry = NativeEntry::new(
+        "● work · 1w · active · now".to_string(),
+        "Workspace\nName: work".to_string(),
+        NativeAction::Select(Selection::Session("work".to_string())),
+        vec!["session", "window", "agent"],
+        NativeGroup::Running,
+    )
+    .with_windows("work".to_string(), vec![window]);
+    let entries = vec![entry];
+    let filtered = vec![0usize];
+    let mut expanded: HashSet<String> = HashSet::new();
+
+    // Expand the session -> the window becomes navigable (but its panes stay hidden).
+    let sel = selectable_rows(&entries, &filtered, &expanded);
+    apply_tree_key(TreeKey::EntryToggle, &sel, &entries, &filtered, &mut expanded, 0);
+    let sel = selectable_rows(&entries, &filtered, &expanded);
+    assert_eq!(sel.len(), 2, "session + one window row");
+
+    // Expand the window (cursor on it) -> its two panes appear as leaves.
+    let cursor = apply_tree_key(TreeKey::EntryToggle, &sel, &entries, &filtered, &mut expanded, 1);
+    assert_eq!(cursor, 1, "cursor stays on the window when opening its panes");
+    assert!(expanded.contains("@1"), "window keyed by its tmux id");
+    let sel = selectable_rows(&entries, &filtered, &expanded);
+    assert_eq!(sel.len(), 4, "session + window + two panes");
+    assert!(matches!(sel[2], Selectable::Pane { pos: 0, win: 0, pane: 0 }));
+    assert!(matches!(sel[3], Selectable::Pane { pos: 0, win: 0, pane: 1 }));
+
+    // Collapsing from a pane leaf closes the window and returns to the window row.
+    let cursor = apply_tree_key(TreeKey::Collapse, &sel, &entries, &filtered, &mut expanded, 3);
+    assert_eq!(cursor, 1);
+    assert!(!expanded.contains("@1"));
     assert_eq!(selectable_rows(&entries, &filtered, &expanded).len(), 2);
 }
 
@@ -843,3 +912,141 @@ fn working_status_renders_without_content_delta() {
     assert!(row.line.contains("work"), "expected work label: {}", row.line);
 }
 
+
+fn agent_pane_with_model(id: &str, status: PaneAgentStatus, model: Option<&str>) -> TmuxPane {
+    let mut pane = agent_pane(id, status, false, false);
+    if let Some(agent) = pane.agent.as_mut() {
+        agent.model = model.map(|m| m.to_string());
+    }
+    pane
+}
+
+#[test]
+fn agents_mode_one_row_per_pane_grouped_by_attention() {
+    // Three agents in one session: approval (needs you), working, idle. Agents
+    // mode must emit exactly one row each, ordered needs-you -> working -> quiet.
+    let snap = one_session_snapshot(vec![
+        agent_pane("%1", PaneAgentStatus::Idle, false, false),
+        agent_pane("%2", PaneAgentStatus::Working, false, true),
+        agent_pane("%3", PaneAgentStatus::WaitingApprove, true, false),
+    ]);
+    let entries = build_agent_entries(&snap);
+    assert_eq!(entries.len(), 3, "one row per agent-pane");
+    use crate::native_state::NativeGroup::*;
+    assert_eq!(entries[0].group, AgentNeedsYou);
+    assert_eq!(entries[1].group, AgentWorking);
+    assert_eq!(entries[2].group, AgentQuiet);
+    // The needs-you row jumps straight to its exact pane (%3).
+    let crate::native_state::NativeAction::Select(Selection::Pane {
+        pane_id,
+        window_id,
+        session,
+    }) = &entries[0].action
+    else {
+        panic!("agents mode row must select a pane, got {:?}", entries[0].action);
+    };
+    assert_eq!(pane_id, "%3");
+    assert_eq!(window_id, "@1");
+    assert_eq!(session, "proj");
+}
+
+#[test]
+fn agents_mode_row_shows_the_model() {
+    // The whole point of Agents mode: model is unambiguous and on the row.
+    let snap = one_session_snapshot(vec![agent_pane_with_model(
+        "%1",
+        PaneAgentStatus::Working,
+        Some("opus-4-8"),
+    )]);
+    let entries = build_agent_entries(&snap);
+    assert_eq!(entries.len(), 1);
+    assert!(
+        entries[0].line.contains("opus-4-8"),
+        "expected model in row: {}",
+        entries[0].line
+    );
+}
+
+#[test]
+fn layouts_mode_flags_running_and_stopped() {
+    // Two layouts; one shares a name with a running session, the other doesn't.
+    let model = MenuModel {
+        layouts: vec![
+            Layout {
+                session: "proj".to_string(),
+                display: "~/proj".to_string(),
+                path: "/home/user/proj".to_string(),
+                running: false,
+            },
+            Layout {
+                session: "sidecar".to_string(),
+                display: "~/sidecar".to_string(),
+                path: "/home/user/sidecar".to_string(),
+                running: false,
+            },
+        ],
+        ..Default::default()
+    };
+    // `proj` is running in the snapshot; `sidecar` is not.
+    let snap = one_session_snapshot(vec![agent_pane("%1", PaneAgentStatus::Idle, false, false)]);
+    let entries = build_layout_entries(&model, &snap);
+    let proj = entries.iter().find(|e| e.line.contains("proj")).expect("proj");
+    let side = entries
+        .iter()
+        .find(|e| e.line.contains("sidecar"))
+        .expect("sidecar");
+    assert!(proj.line.contains("running"), "proj running: {}", proj.line);
+    assert!(side.line.contains("stopped"), "sidecar stopped: {}", side.line);
+}
+
+#[test]
+fn sessions_mode_excludes_non_running_layouts() {
+    // A running session plus a stopped layout: Sessions mode shows only the
+    // running session (the stopped layout belongs to Layouts mode).
+    let model = MenuModel {
+        layouts: vec![Layout {
+            session: "stopped-only".to_string(),
+            display: "~/stopped".to_string(),
+            path: "/home/user/stopped".to_string(),
+            running: false,
+        }],
+        ..Default::default()
+    };
+    let snap = one_session_snapshot(vec![agent_pane("%1", PaneAgentStatus::Idle, false, false)]);
+    let entries = build_session_entries(&model, &snap);
+    assert!(entries.iter().any(|e| e.line.contains("proj")), "running session present");
+    assert!(
+        !entries.iter().any(|e| e.line.contains("stopped-only")),
+        "stopped layout must not appear in Sessions mode"
+    );
+}
+
+#[test]
+fn help_body_documents_every_agent_state_and_the_modes() {
+    let body = native_state::native_help_body().join("\n");
+    for status in crate::snapshot::PaneAgentStatus::ALL {
+        assert!(
+            body.contains(status.as_str()),
+            "help legend missing state name {}",
+            status.as_str()
+        );
+        assert!(
+            body.contains(status.glyph()),
+            "help legend missing glyph for {}",
+            status.as_str()
+        );
+    }
+    assert!(body.contains("Modes"), "help lists the modes");
+    assert!(body.contains("a agents"), "help documents the agents mode key");
+}
+
+#[test]
+fn help_scroll_is_needed_on_short_terminals_only() {
+    // A short terminal can't show the whole legend, so it must scroll.
+    assert!(
+        crate::native_view::help_max_scroll(6) > 0,
+        "short terminal should allow scrolling to reach the end"
+    );
+    // A tall terminal shows everything at once — no scroll offset possible.
+    assert_eq!(crate::native_view::help_max_scroll(1000), 0);
+}

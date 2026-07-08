@@ -5,6 +5,11 @@ pub(crate) enum NativeGroup {
     Running,
     Configured,
     Directories,
+    /// Agents-mode buckets (T#3): one row per agent-pane, grouped by how much it
+    /// needs the user so the eye lands on the attention states first.
+    AgentNeedsYou,
+    AgentWorking,
+    AgentQuiet,
 }
 
 impl NativeGroup {
@@ -13,6 +18,23 @@ impl NativeGroup {
             Self::Running => "RUNNING",
             Self::Configured => "CONFIGURED",
             Self::Directories => "DIRS",
+            Self::AgentNeedsYou => "NEEDS YOU",
+            Self::AgentWorking => "WORKING",
+            Self::AgentQuiet => "QUIET",
+        }
+    }
+
+    /// Render order (lower first). Agent buckets sort attention → working →
+    /// quiet; they never mix with the workspace groups (each mode builds only
+    /// its own kinds).
+    pub(crate) fn order(self) -> u8 {
+        match self {
+            Self::Running => 0,
+            Self::Configured => 1,
+            Self::Directories => 2,
+            Self::AgentNeedsYou => 3,
+            Self::AgentWorking => 4,
+            Self::AgentQuiet => 5,
         }
     }
 }
@@ -20,6 +42,24 @@ impl NativeGroup {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NativeAction {
     Select(Selection),
+}
+
+/// One pane of a window, shown as a third-level tree leaf when a multi-pane
+/// window is expanded. This is where a pane's real per-pane model/state lives,
+/// so a multi-agent window never has to fake a single model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PaneRow {
+    /// tmux pane id (e.g. `%7`) — the switch target.
+    pub(crate) id: String,
+    /// Name column: the agent kind + model (e.g. `claude opus-4-8`) when this is
+    /// an agent pane, else the running command.
+    pub(crate) label: String,
+    /// Status column: glyph + short state label for an agent pane, else empty.
+    pub(crate) status: String,
+    /// Whether this pane hosts a coding agent (drives spinner polling + color).
+    pub(crate) agent: bool,
+    /// Pre-rendered relative activity label (e.g. `3m`).
+    pub(crate) activity: String,
 }
 
 /// One window of a running session, shown as an indented child row when the
@@ -37,6 +77,27 @@ pub(crate) struct WindowRow {
     /// Pre-rendered relative activity label (e.g. `3m`), so the child row needs
     /// no clock at draw time and the demo can supply synthetic values.
     pub(crate) activity: String,
+    /// Per-pane detail. Always populated (one entry per pane); the *adaptive*
+    /// tree only opens a third level when there's more than one pane — a one-pane
+    /// window shows its agent inline on the window row instead.
+    pub(crate) pane_rows: Vec<PaneRow>,
+}
+
+impl WindowRow {
+    /// Whether this window opens into a third level of pane leaves. Adaptive: a
+    /// one-pane window stays a leaf (its single pane shows inline).
+    pub(crate) fn is_expandable(&self) -> bool {
+        self.pane_rows.len() > 1
+    }
+
+    /// The single agent pane's inline status, when the window holds exactly one
+    /// agent pane — so a one-pane agent window surfaces its state on the row.
+    pub(crate) fn inline_agent_status(&self) -> Option<&str> {
+        match self.pane_rows.as_slice() {
+            [only] if only.agent => Some(only.status.as_str()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -108,16 +169,6 @@ impl SearchMode {
         }
     }
 
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::All => "all",
-            Self::Sessions => "sessions",
-            Self::Agents => "agents",
-            Self::Projects => "projects",
-            Self::Dirs => "dirs",
-        }
-    }
-
     pub(crate) fn accepts(self, entry: &NativeEntry) -> bool {
         match self {
             Self::All => true,
@@ -133,6 +184,65 @@ impl SearchMode {
             Self::Dirs => entry.tags.contains(&"dir"),
         }
     }
+}
+
+/// The picker's top-level mode. Unlike [`SearchMode`] (a client-side filter over
+/// one merged list), each mode is a distinct list built by its own function and
+/// picks the *honest* unit for its question: Sessions is the running-session
+/// tree, Agents is one row per agent-pane (so model/state are never ambiguous),
+/// Layouts is the startable tmuxinator inventory, Dirs is the directory picker.
+/// Switched via footer command keys `s`/`a`/`x`/`d` (and cycled with Tab).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PickerMode {
+    Sessions,
+    Agents,
+    Layouts,
+    Dirs,
+}
+
+impl PickerMode {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Sessions => "sessions",
+            Self::Agents => "agents",
+            Self::Layouts => "layouts",
+            Self::Dirs => "dirs",
+        }
+    }
+
+    /// The switch key as a string, for footer key hints.
+    pub(crate) fn key_label(self) -> &'static str {
+        match self {
+            Self::Sessions => "s",
+            Self::Agents => "a",
+            Self::Layouts => "x",
+            Self::Dirs => "d",
+        }
+    }
+
+    /// Resolve a key press to a mode, so a plain `s`/`a`/`x`/`d` switches modes.
+    pub(crate) fn from_key(ch: char) -> Option<Self> {
+        match ch {
+            's' => Some(Self::Sessions),
+            'a' => Some(Self::Agents),
+            'x' => Some(Self::Layouts),
+            'd' => Some(Self::Dirs),
+            _ => None,
+        }
+    }
+
+    /// Cycle order for Tab.
+    pub(crate) fn next(self) -> Self {
+        match self {
+            Self::Sessions => Self::Agents,
+            Self::Agents => Self::Layouts,
+            Self::Layouts => Self::Dirs,
+            Self::Dirs => Self::Sessions,
+        }
+    }
+
+    /// All modes in switch order, for the footer switcher.
+    pub(crate) const ALL: [Self; 4] = [Self::Sessions, Self::Agents, Self::Layouts, Self::Dirs];
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -341,16 +451,16 @@ pub(crate) const THEME_LIGHT: Theme = Theme {
 pub(crate) const KEY_BINDINGS: &[(&str, &str, &str)] = &[
     ("Enter", "open", "switch/start selected workspace or window"),
     ("j/k or Up/Down", "move", "move selected row"),
-    ("Space or l/→", "tree", "toggle selected session open/closed into windows"),
-    ("h or ←", "close", "collapse the session's window tree"),
+    ("Space or l/→", "tree", "expand the tree one level: session → window → pane"),
+    ("h or ←", "close", "collapse the current tree level"),
     ("g/G", "edge", "jump to first/last row"),
     ("Ctrl-D/Ctrl-U", "page", "move half page down/up"),
     ("/", "filter", "edit filter"),
     ("Esc", "normal", "leave filter/help or close menu"),
-    ("Tab", "scope", "cycle search scope"),
+    ("s/a/x/d", "mode", "switch to sessions/agents/layouts/dirs"),
+    ("Tab", "mode", "cycle to the next mode"),
     ("?", "help", "toggle this help"),
     ("t", "theme", "toggle light/dark theme"),
-    ("d", "dirs", "open directory picker"),
     ("r", "refresh", "refresh tmux state"),
     ("q or Ctrl-C", "close", "close menu"),
     ("Backspace", "filter", "delete previous filter character"),
@@ -371,14 +481,36 @@ pub(crate) fn native_help_body() -> Vec<String> {
     }
     lines.extend([
         String::new(),
+        "Modes".to_string(),
+        "  s sessions  running tmux sessions, expandable into their window tree".to_string(),
+        "  a agents    one row per agent-pane; model + state are never ambiguous".to_string(),
+        "  x layouts   tmuxinator inventory, flagged running/stopped".to_string(),
+        "  d dirs      directory picker for configured or bare sessions".to_string(),
+        String::new(),
         "Rows".to_string(),
         "  ◆ current workspace, ● running, ○ configured/directory".to_string(),
-        "  Space/l toggles a running session open/closed into └─ window children".to_string(),
+        "  Space/l expands session → window → pane; a 1-pane window shows inline".to_string(),
         "   tmux session,  windows,  panes, 󰚩 agents".to_string(),
         "  󰐊 tmuxinator layout/project,  directory,  local config".to_string(),
         "  RUNNING active tmux sessions".to_string(),
         "  CONFIGURED tmuxinator layouts/projects/configured repos".to_string(),
-        "  d opens directory picker for configured or bare directory sessions".to_string(),
+    ]);
+    // Agent-state legend — generated from the enum so glyphs/colours never drift
+    // from what the picker actually draws. Documents both shape and hue.
+    lines.push(String::new());
+    lines.push("Agent states".to_string());
+    for status in crate::snapshot::PaneAgentStatus::ALL {
+        lines.push(format!(
+            "  {} {:<15} {}",
+            status.glyph(),
+            status.as_str(),
+            status.description()
+        ));
+    }
+    lines.push(
+        "  attention states (approve/input/error/rate) bubble to the session row".to_string(),
+    );
+    lines.extend([
         String::new(),
         "CLI".to_string(),
         "  muxpilot state [--json] [--capture]".to_string(),

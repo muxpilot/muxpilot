@@ -69,7 +69,8 @@ pub(crate) use ui::{
 mod workspace_entries;
 #[cfg(test)]
 pub(crate) use workspace_entries::{
-    build_directory_entries, build_native_entries, workspace_detail, WindowSummary, WorkspaceRow,
+    build_agent_entries, build_directory_entries, build_layout_entries, build_native_entries,
+    build_session_entries, workspace_detail, WindowSummary, WorkspaceRow,
 };
 
 pub(crate) async fn select_with_fzf(menu: &str) -> Result<Option<String>, AppError> {

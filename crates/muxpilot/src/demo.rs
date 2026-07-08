@@ -17,10 +17,11 @@ use crossterm::terminal;
 use crate::error::AppError;
 use crate::model::Selection;
 use crate::native_state::{
-    FilterInput, NativeAction, NativeEntry, NativeGroup, SearchMode, WindowRow,
+    FilterInput, NativeAction, NativeEntry, NativeGroup, PaneRow, PickerMode, SearchMode, WindowRow,
 };
+use crate::snapshot::PaneAgentStatus;
 use crate::native_view::{
-    apply_tree_key, draw_native_picker, selectable_rows, PickerScreen, PickerView, TreeKey,
+    apply_tree_key, draw_native_picker, help_max_scroll, selectable_rows, PickerView, TreeKey,
 };
 use crate::ui::*;
 
@@ -55,6 +56,14 @@ const WINDOW_NAMES: &[&str] = &[
 ];
 
 const AGENT_KINDS: &[&str] = &["claude", "codex", "aider", "opencode"];
+const MODELS: &[&str] = &["opus-4-8", "sonnet-5", "gpt-5.4", "haiku-4-5"];
+const PANE_CMDS: &[&str] = &["zsh", "nvim", "cargo", "node", "git", "htop"];
+const DEMO_STATUSES: &[PaneAgentStatus] = &[
+    PaneAgentStatus::Working,
+    PaneAgentStatus::WaitingApprove,
+    PaneAgentStatus::WaitingInput,
+    PaneAgentStatus::Idle,
+];
 
 /// Tiny deterministic hash so the same `count` always yields the same data.
 fn h(i: usize, salt: usize) -> usize {
@@ -93,14 +102,46 @@ fn window_activity_label(i: usize, w: usize) -> &'static str {
 /// windows carry an agent so the parent's `◍` count and the tree agree.
 fn build_demo_windows(i: usize, windows: usize, agent_count: usize) -> Vec<WindowRow> {
     (0..windows)
-        .map(|w| WindowRow {
-            index: w as u32,
-            id: format!("@{}", i * 10 + w),
-            name: WINDOW_NAMES[h(i, 20 + w) % WINDOW_NAMES.len()].to_string(),
-            active: w == 0,
-            panes: 1 + h(i, 30 + w) % 3,
-            agents: usize::from(w < agent_count),
-            activity: window_activity_label(i, w).to_string(),
+        .map(|w| {
+            let panes = 1 + h(i, 30 + w) % 3;
+            let has_agent = w < agent_count;
+            // First pane hosts the agent (if any); the rest are plain shells, so
+            // multi-pane windows demo the third tree level with real-looking data.
+            let pane_rows = (0..panes)
+                .map(|p| {
+                    let agent = has_agent && p == 0;
+                    let status = DEMO_STATUSES[h(i, 7 + w) % DEMO_STATUSES.len()];
+                    PaneRow {
+                        id: format!("%{}", i * 100 + w * 10 + p),
+                        label: if agent {
+                            format!(
+                                "{} {}",
+                                AGENT_KINDS[h(i, 40 + w) % AGENT_KINDS.len()],
+                                MODELS[h(i, 50 + w) % MODELS.len()]
+                            )
+                        } else {
+                            PANE_CMDS[h(i, 60 + w + p) % PANE_CMDS.len()].to_string()
+                        },
+                        status: if agent {
+                            format!("{} {}", status.glyph(), status.short_label())
+                        } else {
+                            String::new()
+                        },
+                        agent,
+                        activity: window_activity_label(i, w).to_string(),
+                    }
+                })
+                .collect();
+            WindowRow {
+                index: w as u32,
+                id: format!("@{}", i * 10 + w),
+                name: WINDOW_NAMES[h(i, 20 + w) % WINDOW_NAMES.len()].to_string(),
+                active: w == 0,
+                panes,
+                agents: usize::from(has_agent),
+                activity: window_activity_label(i, w).to_string(),
+                pane_rows,
+            }
         })
         .collect()
 }
@@ -231,13 +272,9 @@ pub(crate) fn build_demo_entries(count: usize) -> Vec<NativeEntry> {
     }
     // Match the real picker's ordering: running group first, then by name.
     entries.sort_by(|a, b| {
-        let order = |g: NativeGroup| match g {
-            NativeGroup::Running => 0,
-            NativeGroup::Configured => 1,
-            NativeGroup::Directories => 2,
-        };
-        order(a.group)
-            .cmp(&order(b.group))
+        a.group
+            .order()
+            .cmp(&b.group.order())
             .then_with(|| entry_sort_name(a).cmp(&entry_sort_name(b)))
     });
     entries
@@ -261,6 +298,7 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
     let mut cursor = 0usize;
     let mut mode = SearchMode::All;
     let mut show_help = false;
+    let mut help_scroll = 0usize;
     let mut edit_filter = false;
     let mut theme = default_theme();
     let mut expanded: HashSet<String> = HashSet::new();
@@ -275,6 +313,14 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
         if cursor >= selectables.len() {
             cursor = selectables.len().saturating_sub(1);
         }
+        // The demo drives one merged synthetic list via SearchMode scoping; map
+        // that scope onto the picker mode so the status/footer read coherently.
+        let picker_mode = match mode {
+            SearchMode::All | SearchMode::Sessions => PickerMode::Sessions,
+            SearchMode::Agents => PickerMode::Agents,
+            SearchMode::Projects => PickerMode::Layouts,
+            SearchMode::Dirs => PickerMode::Dirs,
+        };
         draw_native_picker(
             &entries,
             &filtered,
@@ -282,9 +328,9 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
             cursor,
             PickerView {
                 filter: &filter,
-                mode,
-                screen: PickerScreen::Main,
+                mode: picker_mode,
                 show_help,
+                help_scroll,
                 edit_filter,
                 // Representative fleet counts so recordings showcase the summary.
                 fleet: crate::workspace_entries::FleetSummary {
@@ -338,7 +384,17 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
                 filter.insert(ch);
                 cursor = 0;
             }
-            KeyCode::Char('?') if !edit_filter => show_help = !show_help,
+            KeyCode::Char('?') if !edit_filter => {
+                show_help = !show_help;
+                help_scroll = 0;
+            }
+            KeyCode::Down | KeyCode::Char('j') if show_help => {
+                let (_, rows) = terminal::size().unwrap_or((100, 30));
+                help_scroll = (help_scroll + 1).min(help_max_scroll(rows as usize));
+            }
+            KeyCode::Up | KeyCode::Char('k') if show_help => {
+                help_scroll = help_scroll.saturating_sub(1);
+            }
             KeyCode::Char('t') if !edit_filter && !show_help => theme = theme.toggled(),
             KeyCode::Char('q') if !edit_filter && !show_help => return Ok(ExitCode::SUCCESS),
             KeyCode::Tab if !show_help => {

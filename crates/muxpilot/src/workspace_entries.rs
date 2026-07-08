@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use crate::model::{DirItem, Layout, MenuModel, Selection};
 use crate::native_state::{NativeAction, NativeEntry, NativeGroup};
-use crate::snapshot::{PaneAgentStatus, TmuxSnapshot};
+use crate::snapshot::{AgentState, PaneAgentStatus, TmuxPane, TmuxSnapshot, TmuxWindow};
 use crate::ui::{entry_sort_name, spinner_frame};
 
 #[derive(Debug, Clone, Default)]
@@ -76,6 +76,41 @@ pub(crate) struct WindowSummary {
     pub(crate) panes: usize,
     pub(crate) agents: usize,
     pub(crate) last_activity: Option<u64>,
+    /// Per-pane detail for the third tree level (one entry per pane).
+    pub(crate) pane_rows: Vec<crate::native_state::PaneRow>,
+}
+
+/// Build a third-level pane leaf: an agent pane shows its kind + model and state
+/// glyph; a plain pane shows its running command.
+fn pane_row(pane: &crate::snapshot::TmuxPane) -> crate::native_state::PaneRow {
+    let (label, status, agent) = match &pane.agent {
+        Some(a) => {
+            let label = match a.model.as_deref() {
+                Some(m) => format!("{} {m}", a.kind),
+                None => a.kind.clone(),
+            };
+            let status = format!("{} {}", a.status.glyph(), a.status.short_label());
+            (label, status, true)
+        }
+        None => {
+            let cmd = if pane.current_command.is_empty() {
+                "shell".to_string()
+            } else {
+                pane.current_command.clone()
+            };
+            (cmd, String::new(), false)
+        }
+    };
+    crate::native_state::PaneRow {
+        id: pane.id.clone(),
+        label,
+        status,
+        agent,
+        activity: relative_activity(
+            pane.last_activity
+                .or_else(|| pane.agent.as_ref().and_then(|a| a.last_change)),
+        ),
+    }
 }
 
 impl WorkspaceRow {
@@ -200,6 +235,7 @@ fn window_rows(row: &WorkspaceRow) -> Vec<crate::native_state::WindowRow> {
             panes: w.panes,
             agents: w.agents,
             activity: relative_activity(w.last_activity),
+            pane_rows: w.pane_rows.clone(),
         })
         .collect()
 }
@@ -346,7 +382,10 @@ fn workspace_line(row: &WorkspaceRow) -> String {
     )
 }
 
-pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -> Vec<NativeEntry> {
+/// Collect the merged workspace rows (sessions + startable layouts/projects +
+/// configured dirs), keyed and deduped. The per-mode builders filter and map
+/// this into their own entry lists.
+fn collect_workspace_rows(model: &MenuModel, snapshot: &TmuxSnapshot) -> Vec<WorkspaceRow> {
     let mut rows: BTreeMap<String, WorkspaceRow> = BTreeMap::new();
     let mut path_to_session: HashMap<String, String> = HashMap::new();
 
@@ -435,6 +474,7 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
                 panes: window.panes.len(),
                 agents: agent_count,
                 last_activity: window.last_activity,
+                pane_rows: window.panes.iter().map(pane_row).collect(),
             });
             for pane in &window.panes {
                 row.last_activity = row.last_activity.max(pane.last_activity);
@@ -466,14 +506,21 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
         }
     }
 
-    let mut out: Vec<NativeEntry> = rows
-        .into_values()
+    rows.into_values()
         .filter(|row| {
             row.session.is_some()
                 || row.layout.is_some()
                 || row.project.is_some()
                 || row.dir.is_some()
         })
+        .collect()
+}
+
+/// Turn workspace rows into sorted picker entries (group order, then name).
+/// Running sessions carry their windows so the row can expand into the tree.
+fn rows_to_entries(rows: Vec<WorkspaceRow>) -> Vec<NativeEntry> {
+    let mut out: Vec<NativeEntry> = rows
+        .into_iter()
         .map(|row| {
             let tags = row.tags();
             let entry = NativeEntry::new(
@@ -483,7 +530,6 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
                 tags,
                 row.group(),
             );
-            // Running sessions carry their windows so the row can expand.
             match &row.session {
                 Some(session) if !row.window_details.is_empty() => {
                     entry.with_windows(session.clone(), window_rows(&row))
@@ -493,16 +539,169 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
         })
         .collect();
     out.sort_by(|a, b| {
-        let group_order = |group: NativeGroup| match group {
-            NativeGroup::Running => 0,
-            NativeGroup::Configured => 1,
-            NativeGroup::Directories => 2,
-        };
-        group_order(a.group)
-            .cmp(&group_order(b.group))
+        a.group
+            .order()
+            .cmp(&b.group.order())
             .then_with(|| entry_sort_name(a).cmp(&entry_sort_name(b)))
     });
     out
+}
+
+/// The merged workspace list (all groups). Retained as a test oracle for the
+/// shared collect/dedup logic; the picker uses the per-mode builders below.
+#[cfg(test)]
+pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -> Vec<NativeEntry> {
+    rows_to_entries(collect_workspace_rows(model, snapshot))
+}
+
+/// Sessions mode: only running tmux sessions, each expandable into its window
+/// tree. This is the honest per-session view — a multi-agent session shows a
+/// state tally + count and never a fake single model.
+pub(crate) fn build_session_entries(
+    model: &MenuModel,
+    snapshot: &TmuxSnapshot,
+) -> Vec<NativeEntry> {
+    rows_to_entries(
+        collect_workspace_rows(model, snapshot)
+            .into_iter()
+            .filter(|row| row.session.is_some())
+            .collect(),
+    )
+}
+
+/// Layouts mode: the tmuxinator inventory (repo-local layouts + global
+/// projects), each flagged running/stopped. Enter switches to a running one or
+/// starts a stopped one — both handled by `execute`.
+pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -> Vec<NativeEntry> {
+    let running: std::collections::HashSet<&str> =
+        snapshot.sessions.iter().map(|s| s.name.as_str()).collect();
+    let mut entries: Vec<NativeEntry> = Vec::new();
+
+    let mut layouts = model.layouts.clone();
+    layouts.sort_by(|a, b| a.session.cmp(&b.session));
+    for l in &layouts {
+        let is_running = l.running || running.contains(l.session.as_str());
+        entries.push(layout_entry(
+            &l.session,
+            "layout",
+            is_running,
+            Selection::Layout {
+                session: l.session.clone(),
+                full_path: l.path.clone(),
+            },
+        ));
+    }
+    for p in &model.projects {
+        let is_running = running.contains(p.as_str());
+        entries.push(layout_entry(
+            p,
+            "project",
+            is_running,
+            Selection::Project(p.clone()),
+        ));
+    }
+    entries.sort_by_key(entry_sort_name);
+    entries
+}
+
+fn layout_entry(name: &str, kind: &str, running: bool, selection: Selection) -> NativeEntry {
+    let glyph = if running { "●" } else { "○" };
+    let status = if running { "running" } else { "stopped" };
+    let line = format!("{glyph} {name} · {kind} · {status} · -");
+    let detail = [
+        "Layout".to_string(),
+        format!("Name: {name}"),
+        format!("Kind: {kind}"),
+        format!("State: {status}"),
+        format!(
+            "Default action: {}",
+            if running {
+                "switch to running session"
+            } else {
+                "start this layout"
+            }
+        ),
+    ]
+    .join("\n");
+    NativeEntry::new(
+        line,
+        detail,
+        NativeAction::Select(selection),
+        vec!["layout", "project"],
+        NativeGroup::Configured,
+    )
+}
+
+/// Agents mode: one row per agent-pane across every session, so model and state
+/// are never ambiguous. Grouped needs-you / working / quiet; Enter jumps
+/// straight to the exact `session:window.pane`.
+pub(crate) fn build_agent_entries(snapshot: &TmuxSnapshot) -> Vec<NativeEntry> {
+    let mut entries: Vec<NativeEntry> = Vec::new();
+    for session in &snapshot.sessions {
+        for window in &session.windows {
+            for pane in &window.panes {
+                let Some(agent) = &pane.agent else { continue };
+                let group = if agent.attention || agent.status.needs_attention() {
+                    NativeGroup::AgentNeedsYou
+                } else if agent.status == PaneAgentStatus::Working || agent.is_active {
+                    NativeGroup::AgentWorking
+                } else {
+                    NativeGroup::AgentQuiet
+                };
+                let glyph = agent.status.glyph();
+                let model = agent.model.as_deref().unwrap_or("?");
+                let loc = format!("{}:{}", session.name, window.name);
+                let last = relative_activity(agent.last_change.or(pane.last_activity));
+                // columns: name(kind+loc) · model · status · last — model is the
+                // whole point of this mode, so it gets its own column.
+                let line = format!(
+                    "{glyph} {} {loc} · {model} · {} · {last}",
+                    agent.kind,
+                    agent.status.short_label()
+                );
+                entries.push(NativeEntry::new(
+                    line,
+                    agent_detail(&session.name, window, pane, agent),
+                    NativeAction::Select(Selection::Pane {
+                        session: session.name.clone(),
+                        window_id: window.id.clone(),
+                        pane_id: pane.id.clone(),
+                    }),
+                    vec!["agent"],
+                    group,
+                ));
+            }
+        }
+    }
+    entries.sort_by(|a, b| {
+        a.group
+            .order()
+            .cmp(&b.group.order())
+            .then_with(|| entry_sort_name(a).cmp(&entry_sort_name(b)))
+    });
+    entries
+}
+
+fn agent_detail(session: &str, window: &TmuxWindow, pane: &TmuxPane, agent: &AgentState) -> String {
+    let mut lines = vec![
+        "Agent".to_string(),
+        format!("Name: {} agent", agent.kind),
+        format!("Model: {}", agent.model.as_deref().unwrap_or("unknown")),
+        format!("State: {}", agent.status.as_str()),
+        format!("Confidence: {}%", agent.confidence),
+        format!("Location: {session}:{} ({})", window.name, pane.id),
+        format!(
+            "Last change: {}",
+            relative_activity(agent.last_change.or(pane.last_activity))
+        ),
+    ];
+    if !agent.wait_reason.is_empty() {
+        lines.push(format!("Waiting: {}", agent.wait_reason));
+    }
+    if !agent.evidence.is_empty() {
+        lines.push(format!("Evidence: {}", agent.evidence.join("; ")));
+    }
+    lines.join("\n")
 }
 
 pub(crate) fn build_directory_entries(model: &MenuModel) -> Vec<NativeEntry> {

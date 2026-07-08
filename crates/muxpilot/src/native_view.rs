@@ -4,7 +4,7 @@ use std::io::Write;
 use crate::error::{AppError, ErrorCode};
 use crossterm::terminal;
 
-use crate::native_state::{native_help_body, FilterInput, NativeEntry, NativeGroup, SearchMode};
+use crate::native_state::{native_help_body, FilterInput, NativeEntry, NativeGroup, PickerMode};
 use crate::ui::*;
 
 /// Fixed left gutter before the column area: `marker + space + glyph + space`.
@@ -15,27 +15,14 @@ const PREFIX: usize = 4;
 /// edge-cell clipping.
 const RIGHT_GUTTER: usize = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PickerScreen {
-    Main,
-    Directories,
-}
-
-impl PickerScreen {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Main => "workspaces",
-            Self::Directories => "directories",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PickerView<'a> {
     pub(crate) filter: &'a FilterInput,
-    pub(crate) mode: SearchMode,
-    pub(crate) screen: PickerScreen,
+    pub(crate) mode: PickerMode,
     pub(crate) show_help: bool,
+    /// Scroll offset (in body lines) for the help overlay, so long help is
+    /// reachable on short terminals.
+    pub(crate) help_scroll: usize,
     pub(crate) edit_filter: bool,
     /// Fleet-wide agent counts for the status bar (T4).
     pub(crate) fleet: crate::workspace_entries::FleetSummary,
@@ -50,6 +37,9 @@ enum DisplayRow {
     /// A window child: `pos` is the parent's index into `filtered`, `win` is the
     /// index into that entry's `windows`.
     Window { pos: usize, win: usize },
+    /// A pane leaf (third level): `pos`/`win` locate the parent window, `pane`
+    /// indexes into that window's `pane_rows`.
+    Pane { pos: usize, win: usize, pane: usize },
 }
 
 /// A navigable row — everything the cursor can land on (headers excluded). The
@@ -58,15 +48,26 @@ enum DisplayRow {
 pub(crate) enum Selectable {
     Entry(usize),
     Window { pos: usize, win: usize },
+    Pane { pos: usize, win: usize, pane: usize },
 }
 
-/// Whether the entry at filtered position `pos` is currently expanded.
+/// Whether the session entry at filtered position `pos` is expanded into windows.
 fn is_expanded(entry: &NativeEntry, expanded: &HashSet<String>) -> bool {
     entry.is_expandable()
         && entry
             .session
             .as_ref()
             .is_some_and(|s| expanded.contains(s))
+}
+
+/// Whether a window row is expanded into its pane leaves. Windows are keyed in
+/// the same `expanded` set by their tmux id (`@N`), which never collides with a
+/// session name in practice.
+fn is_window_expanded(
+    win: &crate::native_state::WindowRow,
+    expanded: &HashSet<String>,
+) -> bool {
+    win.is_expandable() && expanded.contains(&win.id)
 }
 
 /// The ordered navigable rows (entries + the window children of expanded
@@ -82,8 +83,13 @@ pub(crate) fn selectable_rows(
         out.push(Selectable::Entry(pos));
         let entry = &entries[*entry_idx];
         if is_expanded(entry, expanded) {
-            for win in 0..entry.windows.len() {
+            for (win, window) in entry.windows.iter().enumerate() {
                 out.push(Selectable::Window { pos, win });
+                if is_window_expanded(window, expanded) {
+                    for pane in 0..window.pane_rows.len() {
+                        out.push(Selectable::Pane { pos, win, pane });
+                    }
+                }
             }
         }
     }
@@ -107,8 +113,13 @@ fn build_display_rows(
         }
         rows.push(DisplayRow::Entry(pos));
         if is_expanded(entry, expanded) {
-            for win in 0..entry.windows.len() {
+            for (win, window) in entry.windows.iter().enumerate() {
                 rows.push(DisplayRow::Window { pos, win });
+                if is_window_expanded(window, expanded) {
+                    for pane in 0..window.pane_rows.len() {
+                        rows.push(DisplayRow::Pane { pos, win, pane });
+                    }
+                }
             }
         }
     }
@@ -157,26 +168,89 @@ pub(crate) fn apply_tree_key(
             if should_open {
                 expanded.insert(session.clone());
             } else {
-                expanded.remove(session);
+                collapse_session(entry, expanded);
             }
             cursor
         }
-        // On a window child, collapse/toggle closes the parent and moves the
-        // cursor back up to it; expand is a no-op.
-        Selectable::Window { pos, .. } => match key {
+        Selectable::Window { pos, win } => {
+            let Some(entry) = filtered.get(*pos).map(|idx| &entries[*idx]) else {
+                return cursor;
+            };
+            let Some(window) = entry.windows.get(*win) else {
+                return cursor;
+            };
+            let win_open = expanded.contains(&window.id);
+            match key {
+                // l/→ opens or closes this window's pane level; never the session.
+                TreeKey::EntryToggle => {
+                    if window.is_expandable() {
+                        if win_open {
+                            expanded.remove(&window.id);
+                        } else {
+                            expanded.insert(window.id.clone());
+                        }
+                    }
+                    cursor
+                }
+                // Space toggles the pane level when there is one, else falls back
+                // to collapsing the parent session (matching the old behaviour).
+                TreeKey::Toggle if window.is_expandable() => {
+                    if win_open {
+                        expanded.remove(&window.id);
+                    } else {
+                        expanded.insert(window.id.clone());
+                    }
+                    cursor
+                }
+                // h/← closes an open pane level first, otherwise collapses the
+                // parent session and moves the cursor back up to it.
+                TreeKey::Collapse if win_open => {
+                    expanded.remove(&window.id);
+                    cursor
+                }
+                TreeKey::Collapse | TreeKey::Toggle => {
+                    collapse_session(entry, expanded);
+                    cursor_to_entry(selectables, *pos, cursor)
+                }
+            }
+        }
+        // On a pane leaf, collapse/toggle closes the parent window and moves the
+        // cursor back up to it; expand (l/→) is a no-op.
+        Selectable::Pane { pos, win, .. } => match key {
             TreeKey::EntryToggle => cursor,
             TreeKey::Collapse | TreeKey::Toggle => {
-                if let Some(session) = filtered.get(*pos).and_then(|idx| entries[*idx].session.as_ref())
+                if let Some(window) = filtered
+                    .get(*pos)
+                    .and_then(|idx| entries[*idx].windows.get(*win))
                 {
-                    expanded.remove(session);
+                    expanded.remove(&window.id);
                 }
                 selectables
                     .iter()
-                    .position(|s| matches!(s, Selectable::Entry(p) if p == pos))
+                    .position(|s| matches!(s, Selectable::Window { pos: p, win: w } if p == pos && w == win))
                     .unwrap_or(cursor)
             }
         },
     }
+}
+
+/// Collapse a session: drop it and every one of its windows from the expanded
+/// set, so a re-open starts clean and no stale window ids linger.
+fn collapse_session(entry: &NativeEntry, expanded: &mut HashSet<String>) {
+    if let Some(session) = entry.session.as_ref() {
+        expanded.remove(session);
+    }
+    for window in &entry.windows {
+        expanded.remove(&window.id);
+    }
+}
+
+/// The cursor index of the `Entry` row at filtered position `pos`.
+fn cursor_to_entry(selectables: &[Selectable], pos: usize, fallback: usize) -> usize {
+    selectables
+        .iter()
+        .position(|s| matches!(s, Selectable::Entry(p) if *p == pos))
+        .unwrap_or(fallback)
 }
 
 /// Whether any workspace row currently on screen has an agent — decides whether
@@ -201,6 +275,11 @@ pub(crate) fn visible_has_agent(
         .take(body_rows)
         .any(|row| match row {
             DisplayRow::Entry(pos) => entries[filtered[*pos]].tags.contains(&"agent"),
+            DisplayRow::Pane { pos, win, pane } => entries[filtered[*pos]]
+                .windows
+                .get(*win)
+                .and_then(|w| w.pane_rows.get(*pane))
+                .is_some_and(|p| p.agent),
             _ => false,
         })
 }
@@ -224,7 +303,9 @@ fn cursor_display_index(display: &[DisplayRow], cursor: usize) -> usize {
 /// window child). Used to drive the preview pane.
 fn display_row_entry_pos(row: &DisplayRow) -> Option<usize> {
     match row {
-        DisplayRow::Entry(pos) | DisplayRow::Window { pos, .. } => Some(*pos),
+        DisplayRow::Entry(pos) | DisplayRow::Window { pos, .. } | DisplayRow::Pane { pos, .. } => {
+            Some(*pos)
+        }
         DisplayRow::Header(_) => None,
     }
 }
@@ -293,8 +374,7 @@ fn draw_status(
     // counts, so on a narrow status bar the static counts truncate first and the
     // live filter text is preserved.
     let status = format!(
-        "  {shown}/{total} · {} · {}{filter_note}{fleet_note}",
-        view.screen.label(),
+        "  {shown}/{total} · {}{filter_note}{fleet_note}",
         view.mode.label(),
     );
     let status_col = brand_w;
@@ -422,6 +502,49 @@ fn draw_window_row(
     }
 }
 
+/// Draw one pane leaf (third tree level): a deeper tree connector under the
+/// window, then the pane's model/state columns.
+fn draw_pane_row(
+    frame_line: &mut String,
+    list_width: usize,
+    window: &crate::native_state::WindowRow,
+    pane_idx: usize,
+    selected: bool,
+    query: &str,
+    theme: &Theme,
+) {
+    let Some(pane) = window.pane_rows.get(pane_idx) else {
+        return;
+    };
+    let is_last = pane_idx + 1 == window.pane_rows.len();
+    let row_style = if selected { theme.selected } else { theme.panel };
+    set_frame_segment(frame_line, 0, list_width, "", row_style);
+
+    let marker = if selected { "▍" } else { " " };
+    let marker_style = if selected { theme.marker } else { theme.panel };
+    set_frame_segment(frame_line, 0, 1, marker, marker_style);
+
+    // Connector inset one level deeper than a window child (cols 4-5), so panes
+    // visibly nest under their window.
+    let connector = if is_last { "└─" } else { "├─" };
+    let conn_style = if selected { theme.selected } else { theme.group };
+    set_frame_segment(frame_line, 4, 2, connector, conn_style);
+
+    const PANE_PREFIX: usize = 6;
+    if list_width > PANE_PREFIX + RIGHT_GUTTER {
+        let content_width = list_width - PANE_PREFIX - RIGHT_GUTTER;
+        let columns = pane_columns(pane, content_width);
+        let highlighted = highlight_matches(
+            &columns,
+            query,
+            content_width,
+            row_style,
+            theme.match_highlight,
+        );
+        set_frame_raw_segment(frame_line, PANE_PREFIX, &highlighted);
+    }
+}
+
 /// Draw the detail preview pane for the selected entry.
 #[allow(clippy::too_many_arguments)]
 fn draw_preview(
@@ -492,7 +615,7 @@ pub(crate) fn draw_native_picker(
     draw_status(&mut frame, cols, view, filtered.len(), entries.len(), theme);
 
     if view.show_help {
-        draw_help(&mut frame, cols, rows, theme);
+        draw_help(&mut frame, cols, rows, view.help_scroll, theme);
         return flush_frame(frame);
     }
 
@@ -541,6 +664,20 @@ pub(crate) fn draw_native_picker(
                     theme,
                 );
             }
+            DisplayRow::Pane { pos, win, pane } => {
+                let entry = &entries[filtered[*pos]];
+                if let Some(window) = entry.windows.get(*win) {
+                    draw_pane_row(
+                        &mut frame[frame_row],
+                        list_width,
+                        window,
+                        *pane,
+                        selected,
+                        query,
+                        theme,
+                    );
+                }
+            }
         }
     }
 
@@ -573,24 +710,47 @@ pub(crate) fn draw_native_picker(
     flush_frame(frame)
 }
 
-fn draw_help(frame: &mut [String], cols: usize, rows: usize, theme: &Theme) {
+/// Body rows available to the help view: everything below the status bar (row 0)
+/// and the "help" title (row 1). Shared by the renderer and the scroll clamp so
+/// they never disagree about how far the body can scroll.
+pub(crate) fn help_visible_rows(rows: usize) -> usize {
+    rows.saturating_sub(2)
+}
+
+/// The furthest the help view can scroll for a terminal of `rows` height, so the
+/// last line still lands on-screen and `j` stops at the bottom.
+pub(crate) fn help_max_scroll(rows: usize) -> usize {
+    native_help_body()
+        .len()
+        .saturating_sub(help_visible_rows(rows))
+}
+
+fn draw_help(frame: &mut [String], cols: usize, rows: usize, scroll: usize, theme: &Theme) {
+    let body = native_help_body();
+    let avail = help_visible_rows(rows);
+    let scroll = scroll.min(body.len().saturating_sub(avail));
+    // Title doubles as a scroll indicator when there's more above/below.
+    let more_above = scroll > 0;
+    let more_below = scroll + avail < body.len();
+    let title = match (more_above, more_below) {
+        (true, true) => "help ↕",
+        (false, true) => "help ↓",
+        (true, false) => "help ↑",
+        (false, false) => "help",
+    };
     if rows > 1 {
         set_frame_segment(
             &mut frame[1],
             0,
             cols,
-            &section_title("help", cols),
+            &section_title(title, cols),
             theme.panel_header,
         );
     }
-    for (idx, line) in native_help_body()
-        .into_iter()
-        .take(rows.saturating_sub(3))
-        .enumerate()
-    {
+    for (idx, line) in body.iter().skip(scroll).take(avail).enumerate() {
         let row = idx + 2;
         if row < rows {
-            set_frame_segment(&mut frame[row], 0, cols, &line, theme.panel);
+            set_frame_segment(&mut frame[row], 0, cols, line, theme.panel);
         }
     }
 }
@@ -614,25 +774,23 @@ fn draw_footer(
         set_frame_segment(&mut frame[last], 0, cols, &footer, theme.filter_active);
         return;
     }
-    let pairs: &[(&str, &str)] = match view.screen {
-        PickerScreen::Main => &[
-            ("⏎", "open"),
-            ("l", "tree"),
-            ("/", "filter"),
-            ("d", "dirs"),
-            ("⇥", "scope"),
-            ("?", "help"),
-            ("q", "close"),
-        ],
-        PickerScreen::Directories => &[
-            ("⏎", "start"),
-            ("/", "filter"),
-            ("Esc", "back"),
-            ("?", "help"),
-            ("q", "close"),
-        ],
-    };
-    let footer = footer_keys(pairs, cols, theme);
+    // A stable `Sessions · Agents · Layouts · Dirs` switcher plus the actions for
+    // the current mode. footer_keys truncates from the right on narrow terminals.
+    let mut pairs: Vec<(&str, &str)> = Vec::new();
+    pairs.push(match view.mode {
+        PickerMode::Dirs | PickerMode::Layouts => ("⏎", "start"),
+        _ => ("⏎", "open"),
+    });
+    for m in PickerMode::ALL {
+        pairs.push((m.key_label(), m.label()));
+    }
+    if view.mode == PickerMode::Sessions {
+        pairs.push(("l", "tree"));
+    }
+    pairs.push(("/", "filter"));
+    pairs.push(("?", "help"));
+    pairs.push(("q", "close"));
+    let footer = footer_keys(&pairs, cols, theme);
     set_frame_raw_segment(&mut frame[last], 0, &footer);
 }
 

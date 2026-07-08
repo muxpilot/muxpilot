@@ -155,6 +155,34 @@ impl PaneAgentStatus {
         }
     }
 
+    /// Every state, in the order the help legend lists them (most-active first).
+    pub const ALL: [Self; 8] = [
+        Self::Working,
+        Self::WaitingApprove,
+        Self::WaitingInput,
+        Self::Idle,
+        Self::Error,
+        Self::RateLimited,
+        Self::Parked,
+        Self::Unknown,
+    ];
+
+    /// One-line human meaning for the help legend. The colour word matches how
+    /// the picker tints the glyph (accent = pulls the eye, green = live, dim =
+    /// quiet), so the legend documents both shape and hue.
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Working => "green · producing output right now",
+            Self::WaitingApprove => "accent · wants your approval to proceed",
+            Self::WaitingInput => "accent · waiting for your input",
+            Self::Idle => "dim · at a prompt, nothing running",
+            Self::Error => "accent · the agent hit an error",
+            Self::RateLimited => "accent · throttled by the provider",
+            Self::Parked => "dim · intentionally paused",
+            Self::Unknown => "dim · a process is there but state is unclear",
+        }
+    }
+
     /// Ranking used to bubble the worst child state up to a session/window row
     /// (higher = more urgent).
     pub fn severity(self) -> u8 {
