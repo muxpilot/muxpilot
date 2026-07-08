@@ -21,6 +21,9 @@ pub(crate) struct WorkspaceRow {
     pub(crate) agents: Vec<String>,
     pub(crate) window_details: Vec<WindowSummary>,
     pub(crate) agent_attention: bool,
+    /// Any agent in this workspace changed its screen since the last snapshot
+    /// (T3) — drives the honest "working" vs "idle" status label.
+    pub(crate) agent_active: bool,
     pub(crate) last_activity: Option<u64>,
 }
 
@@ -183,7 +186,13 @@ fn workspace_activity(row: &WorkspaceRow) -> String {
         return " wait".to_string();
     }
     if !row.agents.is_empty() {
-        return format!("{} agent", spinner_frame());
+        // Honest state (T3): a live spinner only when content is actually
+        // changing; otherwise the agent is sitting idle at its prompt.
+        return if row.agent_active {
+            format!("{} working", spinner_frame())
+        } else {
+            " idle".to_string()
+        };
     }
     if row.session.is_some() {
         return "active".to_string();
@@ -389,6 +398,10 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
                         agent.kind, agent.status, agent.confidence, pane.id
                     ));
                     row.agent_attention |= agent.attention;
+                    row.agent_active |= agent.is_active;
+                    // Prefer the content-change time over tmux pane_activity, which
+                    // a repainting spinner keeps falsely fresh.
+                    row.last_activity = row.last_activity.max(agent.last_change);
                 }
             }
         }

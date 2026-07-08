@@ -317,6 +317,8 @@ fn native_entries_merge_workspace_capabilities() {
                         attention: false,
                         wait_reason: String::new(),
                         evidence: vec!["process".to_string()],
+                        is_active: true,
+                        last_change: Some(120),
                     }),
                 }],
             }],
@@ -333,9 +335,11 @@ fn native_entries_merge_workspace_capabilities() {
         "agent token: {}",
         workspace.line
     );
+    // The fixture agent is is_active=true, so the status column shows the honest
+    // "working" label (T3) rather than a generic "agent".
     assert!(
-        workspace.line.contains("agent"),
-        "agent status: {}",
+        workspace.line.contains("working"),
+        "agent working status: {}",
         workspace.line
     );
     assert!(workspace.tags.contains(&"agent"));

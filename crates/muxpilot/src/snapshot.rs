@@ -1,7 +1,10 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap};
+use std::hash::{Hash, Hasher};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::{AppError, ErrorCode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub(crate) const FIELD_SEP: &str = "::__TMUX_MENU__:";
 pub(crate) const MENU_PANE_ROLE: &str = "muxpilot-panel";
@@ -55,6 +58,12 @@ pub struct AgentState {
     pub attention: bool,
     pub wait_reason: String,
     pub evidence: Vec<String>,
+    /// Content changed since the previous snapshot — an honest "working now"
+    /// light immune to spinner repaints (T3). Only set from the capture path.
+    pub is_active: bool,
+    /// Epoch seconds when the pane content last changed (T3). More trustworthy
+    /// than tmux `pane_activity`, which a repainting spinner keeps fresh forever.
+    pub last_change: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -343,6 +352,8 @@ fn infer_agent(
             attention: attention_from_hook(attention, status),
             wait_reason: wait_reason.to_string(),
             evidence,
+            is_active: false,
+            last_change: None,
         });
     }
 
@@ -356,6 +367,8 @@ fn infer_agent(
             attention: false,
             wait_reason: String::new(),
             evidence: vec!["process-tree".to_string()],
+            is_active: false,
+            last_change: None,
         });
     }
 
@@ -367,6 +380,8 @@ fn infer_agent(
         attention: false,
         wait_reason: String::new(),
         evidence: vec![format!("pane_current_command={command}")],
+        is_active: false,
+        last_change: None,
     })
 }
 
@@ -448,11 +463,73 @@ fn classify_capture(text: &str) -> (PaneAgentStatus, u8, &'static str) {
     }
 }
 
+// --- T3: content-based pane activity ---
+
+/// One pane's last observed screen content (hashed) and when it last changed.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub(crate) struct PaneActivity {
+    hash: u64,
+    last_change: u64,
+}
+
+pub(crate) fn now_epoch() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn hash_content(text: &str) -> u64 {
+    let mut h = DefaultHasher::new();
+    text.hash(&mut h);
+    h.finish()
+}
+
+/// Decide whether a pane is active by comparing its previous vs current content
+/// hash. Returns `(is_active, updated record)`. A first observation is *not*
+/// active (we have no prior to compare) but starts the clock.
+fn resolve_activity(prev: Option<PaneActivity>, hash: u64, now: u64) -> (bool, PaneActivity) {
+    match prev {
+        Some(p) if p.hash == hash => (false, p),
+        Some(_) => (true, PaneActivity { hash, last_change: now }),
+        None => (false, PaneActivity { hash, last_change: now }),
+    }
+}
+
+fn pane_activity_cache_path() -> String {
+    std::env::var("MUXPILOT_ACTIVITY_CACHE").unwrap_or_else(|_| {
+        format!(
+            "{}/muxpilot-pane-activity.json",
+            std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string())
+        )
+    })
+}
+
+fn load_pane_activity() -> HashMap<String, PaneActivity> {
+    std::fs::read_to_string(pane_activity_cache_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+/// Persist only the panes seen this pass, so the store self-prunes as panes die.
+fn save_pane_activity(map: &HashMap<String, PaneActivity>) {
+    if let Ok(text) = serde_json::to_string(map) {
+        let _ = std::fs::write(pane_activity_cache_path(), text);
+    }
+}
+
 fn capture_pane_text(pane_id: &str) -> String {
     tmux(&["capture-pane", "-pt", pane_id, "-S", "-80"])
 }
 
-fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
+fn infer_from_capture(
+    pane_id: &str,
+    pane: &mut TmuxPane,
+    prev: &HashMap<String, PaneActivity>,
+    current: &mut HashMap<String, PaneActivity>,
+    now: u64,
+) {
     let text = capture_pane_text(pane_id);
     if text.is_empty() {
         return;
@@ -468,6 +545,9 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
     };
 
     let (status, conf, wait_reason) = classify_capture(&text);
+    let (is_active, record) = resolve_activity(prev.get(pane_id).copied(), hash_content(&text), now);
+    current.insert(pane_id.to_string(), record);
+    let last_change = Some(record.last_change);
 
     match &mut pane.agent {
         // Capture refines a non-hook detection: it can upgrade an Unknown into a
@@ -479,6 +559,8 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
                 agent.wait_reason = wait_reason.to_string();
             }
             agent.confidence = agent.confidence.max(conf);
+            agent.is_active = is_active;
+            agent.last_change = last_change;
             agent.evidence.push("capture-pane".to_string());
         }
         None => {
@@ -490,6 +572,8 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
                 attention: status.needs_attention(),
                 wait_reason: wait_reason.to_string(),
                 evidence: vec!["capture-pane".to_string()],
+                is_active,
+                last_change,
             });
         }
         _ => {}
@@ -511,6 +595,16 @@ impl MuxBackend for TmuxBackend {
         let current_pane_id = tmux(&["display-message", "-p", "#{pane_id}"]);
         let raw = tmux(&["list-panes", "-a", "-F", STATE_FORMAT]);
         let processes = parse_ps();
+        // T3: compare each pane's content against the previous snapshot to derive
+        // an honest "active now" signal. `current` keeps only live panes, so the
+        // on-disk store self-prunes when panes close.
+        let prev_activity = if options.capture_pane {
+            load_pane_activity()
+        } else {
+            HashMap::new()
+        };
+        let mut current_activity: HashMap<String, PaneActivity> = HashMap::new();
+        let now = now_epoch();
 
         let mut session_order: Vec<String> = Vec::new();
         let mut sessions: BTreeMap<String, BTreeMap<String, TmuxWindow>> = BTreeMap::new();
@@ -538,9 +632,17 @@ impl MuxBackend for TmuxBackend {
                 ),
                 role: parts[16].to_string(),
             };
-            if options.capture_pane {
+            // Only scrape known-agent panes — bounds the cost to the handful of
+            // agents rather than every shell/editor pane on the machine.
+            if options.capture_pane && pane.agent.is_some() {
                 let pane_id = pane.id.clone();
-                infer_from_capture(&pane_id, &mut pane);
+                infer_from_capture(
+                    &pane_id,
+                    &mut pane,
+                    &prev_activity,
+                    &mut current_activity,
+                    now,
+                );
             }
             let window = sessions
                 .entry(session_name)
@@ -555,6 +657,10 @@ impl MuxBackend for TmuxBackend {
                     panes: Vec::new(),
                 });
             window.panes.push(pane);
+        }
+
+        if options.capture_pane {
+            save_pane_activity(&current_activity);
         }
 
         let sessions = session_order
@@ -709,6 +815,29 @@ mod pane_status_tests {
         assert!(!reason.is_empty());
         assert_eq!(classify_capture("⠋ working…").1, 70);
         assert!(!classify_capture("⠋ working…").0.needs_attention());
+    }
+
+    #[test]
+    fn resolve_activity_flags_content_change_only() {
+        let h1 = hash_content("screen A");
+        let h2 = hash_content("screen B");
+        assert_ne!(h1, h2);
+        assert_eq!(hash_content("screen A"), h1, "hash is stable");
+
+        // First observation: not active, clock starts now.
+        let (active, rec) = resolve_activity(None, h1, 1000);
+        assert!(!active);
+        assert_eq!(rec.last_change, 1000);
+
+        // Same content later: still not active, last_change preserved.
+        let (active, rec) = resolve_activity(Some(rec), h1, 2000);
+        assert!(!active);
+        assert_eq!(rec.last_change, 1000);
+
+        // Changed content: active, clock resets.
+        let (active, rec) = resolve_activity(Some(rec), h2, 3000);
+        assert!(active);
+        assert_eq!(rec.last_change, 3000);
     }
 
     #[test]

@@ -12,7 +12,11 @@ use crate::native_view::{
     apply_tree_key, draw_native_picker, selectable_rows, visible_has_agent, PickerScreen,
     PickerView, Selectable, TreeKey,
 };
-use crate::snapshot::tmux_snapshot;
+use crate::snapshot::{tmux_snapshot_with_options, SnapshotOptions};
+
+/// The picker scrapes agent panes (gated to known agents) so it can show live
+/// working/idle state and the active-now signal, refreshed on open and on `r`.
+const PICKER_SNAPSHOT: SnapshotOptions = SnapshotOptions { capture_pane: true };
 use crate::ui::*;
 use crate::workspace_entries::{build_directory_entries, build_native_entries};
 use crate::{home, select_with_fzf};
@@ -26,7 +30,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
     }
 
     let _guard = CrosstermGuard::enter()?;
-    let mut snapshot = tmux_snapshot();
+    let mut snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
     let mut entries = build_native_entries(model, &snapshot);
     let mut filter = FilterInput::default();
     let mut cursor = 0usize;
@@ -157,7 +161,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             }
             KeyCode::Char('/') if !show_help => edit_filter = true,
             KeyCode::Char('r') if !edit_filter && !show_help => {
-                snapshot = tmux_snapshot();
+                snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
                 entries = match screen {
                     PickerScreen::Main => build_native_entries(model, &snapshot),
                     PickerScreen::Directories => build_directory_entries(model),
