@@ -420,8 +420,64 @@ fn model_from_args(pane_pid: Option<u32>, processes: &HashMap<u32, ProcessInfo>)
     None
 }
 
-/// Resolve an agent's model. The `@pane_model` hook option is authoritative
-/// (the agent reports its own model); otherwise fall back to the process args.
+/// Env vars agents use to pin their model, in priority order. Read from the
+/// running process — an honest best-effort guess, never a fabricated default.
+const MODEL_ENV_KEYS: &[&str] = &[
+    "ANTHROPIC_MODEL",
+    "CLAUDE_MODEL",
+    "CLAUDE_CODE_MODEL",
+    "OPENAI_MODEL",
+    "CODEX_MODEL",
+    "GEMINI_MODEL",
+    "AIDER_MODEL",
+];
+
+/// Guess an agent's model from its process environment — a fallback for when the
+/// `@pane_model` hook and `--model` arg are both absent (e.g. a plain
+/// `claude --resume` where the user exported `ANTHROPIC_MODEL`). Walks the pane's
+/// process tree like [`model_from_args`]. Linux-only (reads `/proc/<pid>/environ`);
+/// a graceful no-op on mac/BSD, where the hook remains the way to report a model.
+fn model_from_env(pane_pid: Option<u32>, processes: &HashMap<u32, ProcessInfo>) -> Option<String> {
+    let root = pane_pid?;
+    for pid in std::iter::once(root).chain(descendants(root, processes)) {
+        let Some(info) = processes.get(&pid) else {
+            continue;
+        };
+        if detect_agent_name(&info.comm).is_none() && detect_agent_name(&info.args).is_none() {
+            continue;
+        }
+        if let Some(model) = read_proc_model_env(pid) {
+            return Some(model);
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn read_proc_model_env(pid: u32) -> Option<String> {
+    let data = std::fs::read(format!("/proc/{pid}/environ")).ok()?;
+    for entry in data.split(|&b| b == 0) {
+        let Ok(text) = std::str::from_utf8(entry) else {
+            continue;
+        };
+        let Some((key, value)) = text.split_once('=') else {
+            continue;
+        };
+        if MODEL_ENV_KEYS.contains(&key) && !value.trim().is_empty() {
+            return Some(value.trim().to_string());
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "linux"))]
+fn read_proc_model_env(_pid: u32) -> Option<String> {
+    None
+}
+
+/// Resolve an agent's model. The `@pane_model` hook option is authoritative (the
+/// agent reports its own model); otherwise fall back to the process args, then to
+/// a model pinned in the process environment.
 fn resolve_model(
     hook_model: &str,
     pane_pid: Option<u32>,
@@ -431,7 +487,7 @@ fn resolve_model(
     if !hook_model.is_empty() {
         return Some(hook_model.to_string());
     }
-    model_from_args(pane_pid, processes)
+    model_from_args(pane_pid, processes).or_else(|| model_from_env(pane_pid, processes))
 }
 
 fn infer_agent(
