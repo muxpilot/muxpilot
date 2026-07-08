@@ -133,12 +133,13 @@ fn render_agents_human(snapshot: &TmuxSnapshot) -> String {
                     continue;
                 };
                 lines.push(format!(
-                    "{}:{} {} {}:{} confidence={} source={:?} attention={} wait={}",
+                    "{}:{} {} {}:{} model={} confidence={} source={:?} attention={} wait={}",
                     session.name,
                     window.index,
                     pane.id,
                     agent.kind,
                     agent.status,
+                    agent.model.as_deref().unwrap_or("-"),
                     agent.confidence,
                     agent.source,
                     agent.attention,

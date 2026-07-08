@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) const FIELD_SEP: &str = "::__TMUX_MENU__:";
 pub(crate) const MENU_PANE_ROLE: &str = "muxpilot-panel";
-const STATE_FORMAT: &str = "#{session_name}::__TMUX_MENU__:#{window_id}::__TMUX_MENU__:#{window_index}::__TMUX_MENU__:#{window_name}::__TMUX_MENU__:#{window_active}::__TMUX_MENU__:#{window_activity}::__TMUX_MENU__:#{pane_id}::__TMUX_MENU__:#{pane_active}::__TMUX_MENU__:#{pane_current_path}::__TMUX_MENU__:#{pane_current_command}::__TMUX_MENU__:#{pane_pid}::__TMUX_MENU__:#{pane_activity}::__TMUX_MENU__:#{@pane_agent}::__TMUX_MENU__:#{@pane_status}::__TMUX_MENU__:#{@pane_attention}::__TMUX_MENU__:#{@pane_wait_reason}::__TMUX_MENU__:#{@pane_role}";
+const STATE_FORMAT: &str = "#{session_name}::__TMUX_MENU__:#{window_id}::__TMUX_MENU__:#{window_index}::__TMUX_MENU__:#{window_name}::__TMUX_MENU__:#{window_active}::__TMUX_MENU__:#{window_activity}::__TMUX_MENU__:#{pane_id}::__TMUX_MENU__:#{pane_active}::__TMUX_MENU__:#{pane_current_path}::__TMUX_MENU__:#{pane_current_command}::__TMUX_MENU__:#{pane_pid}::__TMUX_MENU__:#{pane_activity}::__TMUX_MENU__:#{@pane_agent}::__TMUX_MENU__:#{@pane_status}::__TMUX_MENU__:#{@pane_attention}::__TMUX_MENU__:#{@pane_wait_reason}::__TMUX_MENU__:#{@pane_role}::__TMUX_MENU__:#{@pane_model}";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TmuxSnapshot {
@@ -57,6 +57,9 @@ pub struct AgentState {
     pub confidence: u8,
     pub attention: bool,
     pub wait_reason: String,
+    /// The model the agent is running (e.g. `claude-opus-4-8`, `gpt-5.5`), when
+    /// known — from the `@pane_model` hook option or the agent's process args.
+    pub model: Option<String>,
     pub evidence: Vec<String>,
     /// The pane's captured screen changed since the previous snapshot (T3) — a
     /// secondary "moving now" signal. Note this hashes the whole capture, so a
@@ -357,6 +360,49 @@ fn detect_process_agent(
     None
 }
 
+/// Extract a `--model X` / `--model=X` / `-m X` value from an agent's process
+/// args — a fallback for when the `@pane_model` hook option isn't set.
+fn model_from_args(pane_pid: Option<u32>, processes: &HashMap<u32, ProcessInfo>) -> Option<String> {
+    let root = pane_pid?;
+    for pid in std::iter::once(root).chain(descendants(root, processes)) {
+        let Some(info) = processes.get(&pid) else {
+            continue;
+        };
+        if detect_agent_name(&info.comm).is_none() && detect_agent_name(&info.args).is_none() {
+            continue;
+        }
+        let tokens: Vec<&str> = info.args.split_whitespace().collect();
+        for (i, tok) in tokens.iter().enumerate() {
+            if let Some(v) = tok.strip_prefix("--model=").or_else(|| tok.strip_prefix("-m=")) {
+                if !v.is_empty() {
+                    return Some(v.to_string());
+                }
+            }
+            if (*tok == "--model" || *tok == "-m") && i + 1 < tokens.len() {
+                let v = tokens[i + 1];
+                if !v.starts_with('-') {
+                    return Some(v.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Resolve an agent's model. The `@pane_model` hook option is authoritative
+/// (the agent reports its own model); otherwise fall back to the process args.
+fn resolve_model(
+    hook_model: &str,
+    pane_pid: Option<u32>,
+    processes: &HashMap<u32, ProcessInfo>,
+) -> Option<String> {
+    let hook_model = hook_model.trim();
+    if !hook_model.is_empty() {
+        return Some(hook_model.to_string());
+    }
+    model_from_args(pane_pid, processes)
+}
+
 fn infer_agent(
     hook_agent: &str,
     hook_status: &str,
@@ -383,6 +429,7 @@ fn infer_agent(
             // implies it. Keeps the independent hook signal authoritative.
             attention: attention_from_hook(attention, status),
             wait_reason: wait_reason.to_string(),
+            model: None,
             evidence,
             is_active: false,
             last_change: None,
@@ -398,6 +445,7 @@ fn infer_agent(
             confidence: 85,
             attention: false,
             wait_reason: String::new(),
+            model: None,
             evidence: vec!["process-tree".to_string()],
             is_active: false,
             last_change: None,
@@ -411,6 +459,7 @@ fn infer_agent(
         confidence: 60,
         attention: false,
         wait_reason: String::new(),
+        model: None,
         evidence: vec![format!("pane_current_command={command}")],
         is_active: false,
         last_change: None,
@@ -614,6 +663,7 @@ fn infer_from_capture(
                 confidence: conf,
                 attention: status.needs_attention(),
                 wait_reason: wait_reason.to_string(),
+                model: None,
                 evidence: vec!["capture-pane".to_string()],
                 is_active,
                 last_change,
@@ -653,7 +703,7 @@ impl MuxBackend for TmuxBackend {
 
         for line in raw.lines() {
             let parts: Vec<&str> = line.split(FIELD_SEP).collect();
-            if parts.len() < 17 {
+            if parts.len() < 18 {
                 continue;
             }
             let session_name = parts[0].to_string();
@@ -688,6 +738,11 @@ impl MuxBackend for TmuxBackend {
                     &mut current_activity,
                     now,
                 );
+            }
+            // Resolve the model once the agent (if any) is finalized: the
+            // @pane_model hook option wins, else the process args.
+            if let Some(agent) = pane.agent.as_mut() {
+                agent.model = resolve_model(parts[17], pane_pid, &processes);
             }
             let window = sessions
                 .entry(session_name)
@@ -860,6 +915,53 @@ mod pane_status_tests {
         assert!(!reason.is_empty());
         assert_eq!(classify_capture("⠋ working…").1, 70);
         assert!(!classify_capture("⠋ working…").0.needs_attention());
+    }
+
+    #[test]
+    fn model_from_args_reads_agent_flags() {
+        let mut procs: HashMap<u32, ProcessInfo> = HashMap::new();
+        procs.insert(
+            100,
+            ProcessInfo {
+                ppid: 1,
+                comm: "node".to_string(),
+                args: "node /usr/bin/claude --model opus-4.8 --foo".to_string(),
+            },
+        );
+        assert_eq!(
+            model_from_args(Some(100), &procs).as_deref(),
+            Some("opus-4.8")
+        );
+
+        procs.insert(
+            200,
+            ProcessInfo {
+                ppid: 1,
+                comm: "codex".to_string(),
+                args: "codex -m=gpt-5.5".to_string(),
+            },
+        );
+        assert_eq!(
+            model_from_args(Some(200), &procs).as_deref(),
+            Some("gpt-5.5")
+        );
+
+        // A non-agent process yields nothing.
+        procs.insert(
+            300,
+            ProcessInfo {
+                ppid: 1,
+                comm: "zsh".to_string(),
+                args: "zsh -l".to_string(),
+            },
+        );
+        assert_eq!(model_from_args(Some(300), &procs), None);
+
+        // The hook option wins over args when present.
+        assert_eq!(
+            resolve_model("claude-opus-4-8", Some(100), &procs).as_deref(),
+            Some("claude-opus-4-8")
+        );
     }
 
     #[test]

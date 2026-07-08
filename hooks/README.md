@@ -18,6 +18,7 @@ the agent's tmux pane with user-options MuxPilot reads:
 | `@pane_status` | `working` / `waiting-approve` / `waiting-input` / `idle` / `error` / `rate-limited` |
 | `@pane_attention` | `1` = needs you, `clear` = doesn't |
 | `@pane_wait_reason` | short reason string |
+| `@pane_model` | model slug the agent is running (`claude-opus-4-8`, `gpt-5.5`) |
 | `@pane_status_ts` | ms timestamp — staleness guard for racing hooks |
 | `@pane_subagents` | live subagent count — defers "done" |
 
@@ -37,10 +38,24 @@ chmod +x ~/.muxpilot/muxpilot-hook.sh
 `settings.local.json` is **not** read). Hooks hot-reload, so running sessions
 start reporting immediately.
 
-**Codex CLI** — set `hooks = true` in `~/.codex/config.toml` and point it at
-[`codex-hooks.json`](./codex-hooks.json). Codex's hook set is smaller (no
-`Notification`/`SessionEnd`/subagents; `PostToolUse` is Bash-only), so waiting
-states for Codex panes come mainly from MuxPilot's screen classifier.
+**Codex CLI** — copy [`codex-hooks.json`](./codex-hooks.json) to
+`~/.codex/hooks.json` (Codex **auto-discovers** that path — there is no
+`hooks_file` key). Ensure `[features] hooks = true` in `~/.codex/config.toml`
+(on by default). Then **run `/hooks` inside Codex to review and *trust* the
+entries** — untrusted command hooks silently never fire (`--dangerously-bypass-hook-trust`
+skips the gate for automation). Prefer the user-level `~/.codex/hooks.json` over
+repo-local `.codex/config.toml` (see `openai/codex#17532`). Codex's `PostToolUse`
+is Bash-only, but it fires `PermissionRequest` (→ waiting-approve) and sends the
+model on every event, so Codex panes get reliable waiting + model without
+screen-scraping.
+
+## Model detection
+
+The hook stamps `@pane_model` from the payload's `model` field. **Codex** sends
+it on every event (always populated). **Claude Code** sends `model` only on
+`SessionStart` (so it's set once per session). When the hook option is absent,
+MuxPilot falls back to the agent's process args (`--model` / `-m`). Shown in the
+picker preview and `muxpilot state`.
 
 ## Verify
 

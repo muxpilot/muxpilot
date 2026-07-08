@@ -442,9 +442,14 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
                     row.path = Some(pane.path.clone());
                 }
                 if let Some(agent) = &pane.agent {
+                    let model = agent
+                        .model
+                        .as_deref()
+                        .map(|m| format!(" {m}"))
+                        .unwrap_or_default();
                     row.agents.push(format!(
-                        "{}:{} {}% pane {}",
-                        agent.kind, agent.status, agent.confidence, pane.id
+                        "{}:{}{} {}% pane {}",
+                        agent.kind, agent.status, model, agent.confidence, pane.id
                     ));
                     row.agent_attention |= agent.attention;
                     row.agent_active |= agent.is_active;

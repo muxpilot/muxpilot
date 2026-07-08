@@ -16,6 +16,9 @@
     "PostToolUse": [
       { "matcher": "*", "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh PostToolUse" } ] }
     ],
+    "PermissionRequest": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh PermissionRequest" } ] }
+    ],
     "Notification": [
       { "hooks": [ { "type": "command", "command": "bash ~/.muxpilot/muxpilot-hook.sh Notification" } ] }
     ],

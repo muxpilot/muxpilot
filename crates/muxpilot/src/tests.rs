@@ -316,6 +316,7 @@ fn native_entries_merge_workspace_capabilities() {
                         confidence: 80,
                         attention: false,
                         wait_reason: String::new(),
+                        model: Some("claude-opus-4-8".to_string()),
                         evidence: vec!["process".to_string()],
                         is_active: true,
                         last_change: Some(120),
@@ -755,6 +756,7 @@ fn agent_pane(id: &str, status: PaneAgentStatus, attention: bool, is_active: boo
             confidence: 85,
             attention,
             wait_reason: String::new(),
+            model: None,
             evidence: vec![],
             is_active,
             last_change: Some(100),
@@ -840,3 +842,4 @@ fn working_status_renders_without_content_delta() {
         .expect("proj row");
     assert!(row.line.contains("work"), "expected work label: {}", row.line);
 }
+

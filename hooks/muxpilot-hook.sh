@@ -39,6 +39,10 @@ else
 fi
 payload="$(cat 2>/dev/null || true)"
 
+# Model slug from the payload when present (Codex sends it on every event; Claude
+# only on SessionStart). Portable — no jq dependency.
+model="$(printf '%s' "$payload" | sed -n 's/.*"model"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+
 get() { tmux show-options -pqv -t "$pane" "$1" 2>/dev/null || true; }
 put() { tmux set-option -p -t "$pane" "$1" "$2" 2>/dev/null || true; }
 unset_opt() { tmux set-option -pu -t "$pane" "$1" 2>/dev/null || true; }
@@ -68,6 +72,10 @@ case "$event" in
     if [ "$subs" -eq 0 ] && [ "$(get @pane_stop_pending)" = "1" ]; then
       put @pane_stop_pending 0; status="idle"; attention="clear"
     fi ;;
+  PermissionRequest)
+    # The authoritative "waiting for approval" signal on both Claude and Codex
+    # (more reliable than inferring it from a Notification substring).
+    status="waiting-approve"; attention="1"; wait_reason="permission" ;;
   Notification)
     case "$payload" in
       *permission_prompt*)  status="waiting-approve"; attention="1"; wait_reason="permission" ;;
@@ -87,7 +95,7 @@ case "$event" in
   SessionEnd)
     unset_opt @pane_agent; unset_opt @pane_status; unset_opt @pane_attention
     unset_opt @pane_wait_reason; unset_opt @pane_status_ts; unset_opt @pane_subagents
-    unset_opt @pane_stop_pending
+    unset_opt @pane_stop_pending; unset_opt @pane_model
     exit 0 ;;
   *) : ;;
 esac
@@ -96,5 +104,6 @@ put @pane_agent "$agent"
 [ -n "$status" ]      && put @pane_status "$status"
 [ -n "$attention" ]   && put @pane_attention "$attention"
 [ -n "$wait_reason" ] && put @pane_wait_reason "$wait_reason"
+[ -n "$model" ]       && put @pane_model "$model"
 [ "$now_ms" -gt 0 ]   && put @pane_status_ts "$now_ms"
 exit 0
