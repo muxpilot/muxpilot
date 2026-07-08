@@ -439,6 +439,24 @@ section.band {
   margin-bottom: 14px;
 }
 
+/* Wider icon variant for install cards: a mono tag rather than a single glyph. */
+.card .ico.pill {
+  width: auto;
+  padding: 0 11px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* A command line sitting inside a card: full width, tighter, scrolls if long. */
+.card .cmd {
+  display: flex;
+  width: 100%;
+  margin-top: 14px;
+  margin-bottom: 0;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
 .card h3 {
   font-size: 16px;
   margin: 0 0 7px;

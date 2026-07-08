@@ -211,6 +211,53 @@ export default function Home() {
           <HeroDemo />
         </section>
 
+        <section className="band" id="get-started">
+          <p className="sec-label">Get started</p>
+          <h2 className="sec-title">Install it your way — one binary, no runtime.</h2>
+          <div className="grid3">
+            <div className="card">
+              <div className="ico pill">brew</div>
+              <h3>Homebrew</h3>
+              <p>macOS or Linux, straight from the tap.</p>
+              <div className="cmd">
+                <span className="p">$</span> brew install muxpilot/tap/muxpilot
+              </div>
+            </div>
+            <div className="card">
+              <div className="ico pill">cargo</div>
+              <h3>Cargo</h3>
+              <p>From crates.io with Rust 1.75 or newer.</p>
+              <div className="cmd">
+                <span className="p">$</span> cargo install muxpilot
+              </div>
+            </div>
+            <div className="card">
+              <div className="ico pill">npm</div>
+              <h3>npm</h3>
+              <p>Prebuilt binary, fetched through Node.</p>
+              <div className="cmd">
+                <span className="p">$</span> npm install -g muxpilot
+              </div>
+            </div>
+            <div className="card">
+              <div className="ico pill">tmux</div>
+              <h3>tmux plugin</h3>
+              <p>
+                Add to <code>~/.tmux.conf</code>, then run TPM.
+              </p>
+              <div className="cmd">
+                <span className="p">tpm</span> {"set -g @plugin 'muxpilot/muxpilot'"}
+              </div>
+            </div>
+          </div>
+          <p className="lede" style={{ marginTop: 22 }}>
+            Then run <code>muxpilot</code> in any pane — or bind it to a tmux
+            popup (<a href="#plugin">below</a>). Confirm your setup any time with{" "}
+            <code>muxpilot doctor</code>, or follow the{" "}
+            <a href="/docs/installation">installation guide</a>.
+          </p>
+        </section>
+
         <section className="band" id="features">
           <p className="sec-label">Why MuxPilot</p>
           <h2 className="sec-title">One menu over everything you launch.</h2>
