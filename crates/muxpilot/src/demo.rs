@@ -286,6 +286,12 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
                 screen: PickerScreen::Main,
                 show_help,
                 edit_filter,
+                // Representative fleet counts so recordings showcase the summary.
+                fleet: crate::workspace_entries::FleetSummary {
+                    working: 2,
+                    waiting: 1,
+                    idle: 3,
+                },
             },
             theme,
         )?;

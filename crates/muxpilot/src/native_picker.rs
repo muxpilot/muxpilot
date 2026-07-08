@@ -18,7 +18,7 @@ use crate::snapshot::{tmux_snapshot_with_options, SnapshotOptions};
 /// working/idle state and the active-now signal, refreshed on open and on `r`.
 const PICKER_SNAPSHOT: SnapshotOptions = SnapshotOptions { capture_pane: true };
 use crate::ui::*;
-use crate::workspace_entries::{build_directory_entries, build_native_entries};
+use crate::workspace_entries::{build_directory_entries, build_native_entries, fleet_summary};
 use crate::{home, select_with_fzf};
 
 pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>, AppError> {
@@ -32,6 +32,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
     let _guard = CrosstermGuard::enter()?;
     let mut snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
     let mut entries = build_native_entries(model, &snapshot);
+    let mut fleet = fleet_summary(&snapshot);
     let mut filter = FilterInput::default();
     let mut cursor = 0usize;
     let mut mode = SearchMode::All;
@@ -64,6 +65,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
                 screen,
                 show_help,
                 edit_filter,
+                fleet,
             },
             theme,
         )?;
@@ -162,6 +164,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             KeyCode::Char('/') if !show_help => edit_filter = true,
             KeyCode::Char('r') if !edit_filter && !show_help => {
                 snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
+                fleet = fleet_summary(&snapshot);
                 entries = match screen {
                     PickerScreen::Main => build_native_entries(model, &snapshot),
                     PickerScreen::Directories => build_directory_entries(model),

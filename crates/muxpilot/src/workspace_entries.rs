@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use crate::model::{DirItem, Layout, MenuModel, Selection};
 use crate::native_state::{NativeAction, NativeEntry, NativeGroup};
-use crate::snapshot::TmuxSnapshot;
+use crate::snapshot::{PaneAgentStatus, TmuxSnapshot};
 use crate::ui::{entry_sort_name, spinner_frame};
 
 #[derive(Debug, Clone, Default)]
@@ -24,7 +24,46 @@ pub(crate) struct WorkspaceRow {
     /// Any agent in this workspace changed its screen since the last snapshot
     /// (T3) — drives the honest "working" vs "idle" status label.
     pub(crate) agent_active: bool,
+    /// The most-severe agent status among this workspace's panes (T4), so a
+    /// session row surfaces the state that most needs the user.
+    pub(crate) agent_status: Option<PaneAgentStatus>,
     pub(crate) last_activity: Option<u64>,
+}
+
+/// Fleet-wide counts of agent panes by coarse state, shown in the status bar.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct FleetSummary {
+    pub(crate) working: usize,
+    pub(crate) waiting: usize,
+    pub(crate) idle: usize,
+}
+
+impl FleetSummary {
+    pub(crate) fn is_empty(self) -> bool {
+        self.working == 0 && self.waiting == 0 && self.idle == 0
+    }
+}
+
+/// Count agent panes across the whole snapshot by coarse state: waiting (needs
+/// you) takes precedence, then actively working, else idle.
+pub(crate) fn fleet_summary(snapshot: &TmuxSnapshot) -> FleetSummary {
+    let mut s = FleetSummary::default();
+    for session in &snapshot.sessions {
+        for window in &session.windows {
+            for pane in &window.panes {
+                if let Some(agent) = &pane.agent {
+                    if agent.attention {
+                        s.waiting += 1;
+                    } else if agent.is_active {
+                        s.working += 1;
+                    } else {
+                        s.idle += 1;
+                    }
+                }
+            }
+        }
+    }
+    s
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,16 +221,22 @@ fn relative_activity(timestamp: Option<u64>) -> String {
 }
 
 fn workspace_activity(row: &WorkspaceRow) -> String {
-    if row.agent_attention {
-        return " wait".to_string();
-    }
     if !row.agents.is_empty() {
+        // Attention states carry their own glyph+label so the row says *what*
+        // needs the user (T4 severity bubble). agent_attention can also be set
+        // by a hook flag on a non-attention status, hence the fallback.
+        if row.agent_attention {
+            if let Some(status) = row.agent_status.filter(|s| s.needs_attention()) {
+                return format!("{} {}", status.glyph(), status.as_str());
+            }
+            return format!("{} attention", PaneAgentStatus::WaitingInput.glyph());
+        }
         // Honest state (T3): a live spinner only when content is actually
         // changing; otherwise the agent is sitting idle at its prompt.
         return if row.agent_active {
             format!("{} working", spinner_frame())
         } else {
-            " idle".to_string()
+            format!("{} idle", PaneAgentStatus::Idle.glyph())
         };
     }
     if row.session.is_some() {
@@ -399,6 +444,11 @@ pub(crate) fn build_native_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
                     ));
                     row.agent_attention |= agent.attention;
                     row.agent_active |= agent.is_active;
+                    // Bubble the most-severe child state up to the row (T4).
+                    row.agent_status = Some(match row.agent_status {
+                        Some(cur) if cur.severity() >= agent.status.severity() => cur,
+                        _ => agent.status,
+                    });
                     // Prefer the content-change time over tmux pane_activity, which
                     // a repainting spinner keeps falsely fresh.
                     row.last_activity = row.last_activity.max(agent.last_change);

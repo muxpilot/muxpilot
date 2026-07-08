@@ -738,3 +738,82 @@ fn tree_expand_is_noop_on_non_session_rows() {
     assert_eq!(cursor, 1);
     assert!(expanded.is_empty());
 }
+
+fn agent_pane(id: &str, status: PaneAgentStatus, attention: bool, is_active: bool) -> TmuxPane {
+    TmuxPane {
+        id: id.to_string(),
+        active: false,
+        path: "/home/user/proj".to_string(),
+        current_command: "claude".to_string(),
+        pid: Some(1),
+        last_activity: Some(100),
+        role: String::new(),
+        agent: Some(AgentState {
+            kind: "claude".to_string(),
+            status,
+            source: AgentStateSource::Process,
+            confidence: 85,
+            attention,
+            wait_reason: String::new(),
+            evidence: vec![],
+            is_active,
+            last_change: Some(100),
+        }),
+    }
+}
+
+fn one_session_snapshot(panes: Vec<TmuxPane>) -> TmuxSnapshot {
+    TmuxSnapshot {
+        schema_version: 1,
+        source: "tmux",
+        backend: "tmux",
+        current_session: "proj".to_string(),
+        current_window_id: "@1".to_string(),
+        current_pane_id: "%1".to_string(),
+        sessions: vec![TmuxSession {
+            name: "proj".to_string(),
+            windows: vec![TmuxWindow {
+                id: "@1".to_string(),
+                index: 0,
+                name: "main".to_string(),
+                active: true,
+                last_activity: Some(100),
+                panes,
+            }],
+        }],
+    }
+}
+
+#[test]
+fn fleet_summary_counts_by_coarse_state() {
+    let snap = one_session_snapshot(vec![
+        agent_pane("%1", PaneAgentStatus::WaitingApprove, true, false),
+        agent_pane("%2", PaneAgentStatus::Working, false, true),
+        agent_pane("%3", PaneAgentStatus::Idle, false, false),
+        agent_pane("%4", PaneAgentStatus::Unknown, false, false),
+    ]);
+    let f = crate::workspace_entries::fleet_summary(&snap);
+    assert_eq!((f.waiting, f.working, f.idle), (1, 1, 2));
+    assert!(!f.is_empty());
+}
+
+#[test]
+fn session_row_bubbles_worst_agent_state_glyph() {
+    // An idle agent next to a waiting-approve one: the row must surface the
+    // approval glyph (the most severe), not idle.
+    let snap = one_session_snapshot(vec![
+        agent_pane("%1", PaneAgentStatus::Idle, false, false),
+        agent_pane("%2", PaneAgentStatus::WaitingApprove, true, false),
+    ]);
+    let model = MenuModel::default();
+    let entries = build_native_entries(&model, &snap);
+    let row = entries
+        .iter()
+        .find(|e| e.line.contains("proj"))
+        .expect("proj row");
+    assert!(
+        row.line.contains(PaneAgentStatus::WaitingApprove.glyph()),
+        "expected approval glyph in: {}",
+        row.line
+    );
+}

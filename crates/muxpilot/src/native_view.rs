@@ -37,6 +37,8 @@ pub(crate) struct PickerView<'a> {
     pub(crate) screen: PickerScreen,
     pub(crate) show_help: bool,
     pub(crate) edit_filter: bool,
+    /// Fleet-wide agent counts for the status bar (T4).
+    pub(crate) fleet: crate::workspace_entries::FleetSummary,
 }
 
 /// One rendered body line: a group header, a workspace row, or an expanded
@@ -270,8 +272,25 @@ fn draw_status(
     } else {
         format!("  ⌕ {query}")
     };
+    // Fleet summary (T4): waiting first — it's the count that most needs the user.
+    let fleet = view.fleet;
+    let fleet_note = if fleet.is_empty() {
+        String::new()
+    } else {
+        let mut parts = Vec::new();
+        if fleet.waiting > 0 {
+            parts.push(format!("◆ {}", fleet.waiting));
+        }
+        if fleet.working > 0 {
+            parts.push(format!("● {}", fleet.working));
+        }
+        if fleet.idle > 0 {
+            parts.push(format!("○ {}", fleet.idle));
+        }
+        format!("  ·  {}", parts.join(" "))
+    };
     let status = format!(
-        "  {shown}/{total} · {} · {}{filter_note}",
+        "  {shown}/{total} · {} · {}{fleet_note}{filter_note}",
         view.screen.label(),
         view.mode.label(),
     );

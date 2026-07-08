@@ -117,11 +117,26 @@ impl PaneAgentStatus {
         )
     }
 
+    /// A distinct glyph per state for the picker's status column and the fleet
+    /// summary (T4). Colour is applied separately by the theme; a live spinner
+    /// replaces the Working glyph when content is actually moving.
+    pub fn glyph(self) -> &'static str {
+        // Geometric BMP glyphs only — each is one display cell so the status
+        // column stays aligned (no emoji-variant width surprises).
+        match self {
+            Self::Working => "●",
+            Self::WaitingApprove => "◆",
+            Self::WaitingInput => "◇",
+            Self::Idle => "○",
+            Self::Error => "×",
+            Self::RateLimited => "◔",
+            Self::Parked => "▪",
+            Self::Unknown => "·",
+        }
+    }
+
     /// Ranking used to bubble the worst child state up to a session/window row
-    /// (higher = more urgent). Consumed by later waves; defined here so the
-    /// vocabulary and its ordering live together.
-    // Exercised by tests; wired into row bubbling in T4.
-    #[allow(dead_code)]
+    /// (higher = more urgent).
     pub fn severity(self) -> u8 {
         match self {
             Self::WaitingApprove => 7,
