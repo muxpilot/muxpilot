@@ -250,7 +250,7 @@ export default function Home() {
           <p className="lede" style={{ marginTop: 20 }}>
             Install through TPM with{" "}
             <code style={{ fontFamily: "var(--font-mono)" }}>
-              set -g @plugin &apos;yatsyk/muxpilot&apos;
+              set -g @plugin &apos;muxpilot/muxpilot&apos;
             </code>
             , or wire the popup binding by hand. See the{" "}
             <a href="/docs/tmux-plugin">tmux plugin guide</a>.

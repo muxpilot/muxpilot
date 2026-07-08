@@ -30,6 +30,6 @@ windows:
       - clear
       - 'echo "▌ SHELL · git · gh · scratch"'
       - 'echo "    git status -sb"'
-      - 'echo "    gh repo view yatsyk/muxpilot"'
+      - 'echo "    gh repo view muxpilot/muxpilot"'
       - 'echo "    repo-sync --report   convergence / identity check"'
       - 'echo "    cargo run -p muxpilot -- --help"'

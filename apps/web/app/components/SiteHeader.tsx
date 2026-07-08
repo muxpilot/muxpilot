@@ -18,7 +18,7 @@ export function SiteHeader() {
         </Link>
         <a
           className="link"
-          href="https://github.com/yatsyk/muxpilot"
+          href="https://github.com/muxpilot/muxpilot"
           rel="noreferrer"
         >
           GitHub
