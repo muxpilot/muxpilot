@@ -17,7 +17,6 @@ function HeroDemo() {
     <div className="demo" aria-label="MuxPilot picker demo">
       <div className="demo-bar">
         <span className="nm">muxpilot</span>
-        <span className="meta">demo · 8 sessions · 3 agents</span>
         <span className="conn">
           <i /> live
         </span>
@@ -45,9 +44,6 @@ function HeroDemo() {
           Run <code>make -C marketing regen</code> to build it.
         </div>
       )}
-      <div className="demo-cap">
-        Terminal capture regenerated via <code>make -C marketing regen</code>
-      </div>
     </div>
   );
 }
