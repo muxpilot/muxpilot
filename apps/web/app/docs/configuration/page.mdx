@@ -1,0 +1,111 @@
+import { DemoClip } from "../../components/DemoClip";
+
+export const metadata = {
+  title: "Configuration",
+  description:
+    "How MuxPilot discovers workspaces: .agentvibes/tmux.yml layouts, search scopes, and the picker keybindings.",
+};
+
+# Configuration
+
+<p className="lede">
+  MuxPilot has almost nothing to configure — it discovers what you can launch
+  from the environment. This page covers where it looks, how the search scopes
+  narrow the list, and the keys that drive the picker.
+</p>
+
+## Layout discovery
+
+A directory is &ldquo;launchable&rdquo; when it has a layout file. MuxPilot
+looks for two, in this order:
+
+| File | Meaning |
+| --- | --- |
+| `.agentvibes/tmux.yml` | The convergence layout that rides with the repo. Preferred. |
+| `.tmuxinator.yml` | A classic tmuxinator project file. |
+
+When you pick a directory that has one of these, MuxPilot launches the layout
+with `tmuxinator start`. The `.agentvibes/tmux.yml` file is a normal tmuxinator
+layout — banners only, nothing auto-runs — so it is safe to commit alongside
+your code. See the one in this repo at `.agentvibes/tmux.yml` for the shape.
+
+## Discovery sources
+
+The picker is assembled from several sources every time it opens:
+
+- **Active tmux sessions** — from the running tmux server, with window and pane
+  counts and detected agent state.
+- **Repo-local layouts** — `.agentvibes/tmux.yml` / `.tmuxinator.yml` in
+  discovered directories.
+- **Saved tmuxinator projects** — every `*.yml` under your tmuxinator config
+  directory (`$XDG_CONFIG_HOME/tmuxinator`, i.e. `~/.config/tmuxinator`).
+- **Frecent directories** — from `zoxide query --list`, if `zoxide` is
+  installed. Without zoxide this source is simply empty.
+- **Plain git repositories** — launchable as bare directory sessions.
+
+Nothing here is configured by hand. To change what shows up, change your
+environment: start a tmux session, add a layout file, or teach `zoxide` about a
+directory by visiting it.
+
+## Search scopes
+
+Press **`Tab`** to cycle the search scope, which filters the whole list down to
+one kind of target:
+
+| Scope | Shows |
+| --- | --- |
+| `all` | Everything (the default). |
+| `sessions` | Active tmux sessions and their windows. |
+| `agents` | Only targets with a detected coding agent. |
+| `projects` | Configured tmuxinator layouts and projects. |
+| `dirs` | Directories (frecent + configured). |
+
+Scopes combine with the fuzzy filter: set a scope with `Tab`, then type with `/`
+to narrow further within it. Press **`d`** to jump straight to the directory
+picker.
+
+<DemoClip name="navigate" caption="Navigating rows with j/k and g/G, then cycling scopes with Tab." />
+
+## Keybindings
+
+The native picker uses these keys:
+
+| Key | Action | Description |
+| --- | --- | --- |
+| `Enter` | open | Switch to / start the selected workspace. |
+| `j` / `k` or `↑` / `↓` | move | Move the selected row. |
+| `g` / `G` | edge | Jump to the first / last row. |
+| `Ctrl-D` / `Ctrl-U` | page | Move half a page down / up. |
+| `/` | filter | Edit the fuzzy filter. |
+| `Esc` | normal | Leave the filter or help, or close the menu. |
+| `Tab` | scope | Cycle the search scope. |
+| `?` | help | Toggle the help overlay. |
+| `d` | dirs | Open the directory picker. |
+| `r` | refresh | Refresh tmux state. |
+| `q` or `Ctrl-C` | close | Close the menu. |
+
+### Filter editing keys
+
+While the filter is active (`/`), a readline-style set of keys is available:
+
+| Key | Action |
+| --- | --- |
+| `Backspace` | Delete the previous character. |
+| `Ctrl-W` | Delete the previous word. |
+| `Ctrl-A` / `Ctrl-E` | Move to the start / end of the filter. |
+| `Ctrl-B` / `Ctrl-F` | Move the cursor left / right. |
+| `←` / `→` | Move the cursor left / right. |
+
+## Reading the rows
+
+Row glyphs encode state at a glance:
+
+- **◆** current workspace &nbsp; **●** running &nbsp; **○** configured / directory
+- Targets are grouped under **RUNNING** (active tmux sessions) and
+  **CONFIGURED** (layouts, projects, and configured repos).
+- The **`d`** key opens the directory picker for configured or bare-directory
+  sessions.
+
+To integrate the same data elsewhere, remember every view has a JSON twin — see
+the [CLI reference](/docs/cli) for `muxpilot state --json` and
+`muxpilot agents --json`.

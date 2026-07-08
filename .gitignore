@@ -1,0 +1,12 @@
+/target/
+/node_modules/
+/apps/web/.next/
+/apps/web/node_modules/
+/apps/web/out/
+/.env
+/.env.*
+!.env.example
+
+# Marketing pipeline scratch (binary shim, temp dirs). Rendered media in
+# apps/web/public/media/ is intentionally left tracked so the site can ship it.
+/marketing/.raw/

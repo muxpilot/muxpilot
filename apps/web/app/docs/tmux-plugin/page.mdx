@@ -1,0 +1,120 @@
+export const metadata = {
+  title: "tmux plugin",
+  description:
+    "Use MuxPilot as a tmux plugin: install via TPM or by hand, and bind the picker to a display-popup.",
+};
+
+# Use MuxPilot as a tmux plugin
+
+<p className="lede">
+  MuxPilot is a compiled Rust binary, not a pure-shell tmux plugin. The
+  &ldquo;plugin&rdquo; is a thin shim: a <code>muxpilot.tmux</code> entry script
+  that makes sure the binary is on <code>PATH</code> and binds a key to launch
+  the picker in a tmux popup over your current session.
+</p>
+
+## The popup UX
+
+Every install path ends the same way: you press a key, the picker opens in a
+`display-popup` floating over your current session, and:
+
+- **`Enter`** switches to (or starts) the selected workspace and closes the popup.
+- **`/`** edits the fuzzy filter; **`j`/`k`** move; **`Tab`** cycles the search scope.
+- **`q`** or **`Esc`** closes the popup without changing anything.
+
+Because it runs in a popup, the picker never disturbs your current layout — it
+draws on top and disappears when you pick or cancel.
+
+## Install with TPM
+
+If you use the [Tmux Plugin Manager](https://github.com/tmux-plugins/tpm), add
+the plugin to your `~/.tmux.conf`:
+
+```tmux
+set -g @plugin 'yatsyk/muxpilot'
+```
+
+Then reload tmux and press `prefix + I` to fetch and install it:
+
+```text
+prefix + I
+```
+
+### What the shim does
+
+Because MuxPilot is a binary, the TPM entry script (`muxpilot.tmux`) does two
+things when tmux sources it:
+
+1. **Ensures the binary exists and is on `PATH`.** If a prebuilt `muxpilot` is
+   already on `PATH`, it is used as-is. Otherwise the shim builds the release
+   binary from the checked-out plugin directory (`cargo build --release`) and
+   points the bindings at `target/release/muxpilot`.
+2. **Installs the default key bindings** (below) unless you have already defined
+   your own, so a fresh install is usable immediately.
+
+The shim is intentionally conservative: it never rebinds a key you have set, and
+it never rebuilds if a `muxpilot` binary is already available.
+
+## Recommended `~/.tmux.conf` bindings
+
+Whether you install via TPM or by hand, these are the bindings MuxPilot
+recommends. Put them in your `~/.tmux.conf`:
+
+```tmux
+# Launch the picker in a popup over the current session
+bind-key C-j display-popup -E -w 80% -h 70% "muxpilot"
+
+# A larger popup, handy when you have many sessions
+bind-key C-k display-popup -E -w 90% -h 80% "muxpilot"
+
+# Optional: toggle a live MuxPilot sidebar pane in the current window
+bind-key C-p run-shell "muxpilot toggle-panel"
+```
+
+`display-popup -E` runs the command and closes the popup when it exits, so
+picking a target (or pressing `q`) returns you straight to your work. Adjust the
+`-w`/`-h` percentages to taste.
+
+### Optional: status-line integration
+
+MuxPilot's state commands emit JSON and compact text, so you can surface agent
+state directly in your tmux status line:
+
+```tmux
+# Compact agent/session summary, refreshed every 5s
+set -g status-interval 5
+set -g status-right "#(muxpilot panel) | %H:%M"
+```
+
+For richer status bars, poll `muxpilot state --json` or `muxpilot agents --json`
+from your own status-line script and format the fields you care about.
+
+## Install by hand (no TPM)
+
+If you do not use TPM, clone the repo, build the release binary, symlink it onto
+your `PATH`, and add the bindings above:
+
+```bash
+# 1. Clone and build
+git clone https://github.com/yatsyk/muxpilot ~/.tmux/plugins/muxpilot
+cd ~/.tmux/plugins/muxpilot
+cargo build --release -p muxpilot
+
+# 2. Put the binary on PATH
+ln -sf "$PWD/target/release/muxpilot" ~/.local/bin/muxpilot
+
+# 3. Add the display-popup bindings to ~/.tmux.conf (see above), then reload:
+tmux source-file ~/.tmux.conf
+```
+
+That is the entire manual install. From here, press `C-j` (after your tmux
+prefix binding, or bind it prefixless as shown) to open the picker.
+
+## Troubleshooting
+
+- **The popup opens and immediately closes.** The binary probably is not on
+  `PATH`. Run `muxpilot doctor` in a normal shell to confirm it resolves.
+- **No sessions or directories appear.** Check [Configuration](/docs/configuration)
+  — MuxPilot needs tmux running and, for directory discovery, `zoxide`.
+- **`prefix + I` does nothing.** TPM is not installed or `@plugin` is set after
+  the `run '~/.tmux/plugins/tpm/tpm'` line. TPM must be sourced last.

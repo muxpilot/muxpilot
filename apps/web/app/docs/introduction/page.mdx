@@ -1,0 +1,61 @@
+import { DemoClip } from "../../components/DemoClip";
+
+export const metadata = {
+  title: "Introduction",
+  description:
+    "MuxPilot is a fast Rust tmux workspace picker and agent-aware session menu.",
+};
+
+# Introduction
+
+<p className="lede">
+  MuxPilot is a fast Rust tmux workspace picker and agent-aware session menu. It
+  puts every launchable thing — running sessions, saved layouts, frecent
+  directories, and the coding agents inside them — behind one keystroke.
+</p>
+
+<DemoClip name="picker" caption="The picker: grouped targets, live agent state, one keystroke to switch." />
+
+## What it does
+
+MuxPilot discovers launchable targets and renders them in a single
+emoji-prefixed menu you drive with the keyboard:
+
+- **Active tmux sessions** — with their window and pane counts.
+- **Repo-local layouts** — `.agentvibes/tmux.yml` and `.tmuxinator.yml`.
+- **Saved tmuxinator projects** — everything under your tmuxinator config dir.
+- **Frecent directories** — pulled from `zoxide` when it is installed.
+- **Plain git repositories** — launchable as bare directory sessions.
+- **Coding agents** — panes running an agent, surfaced with live state.
+
+Pick one and MuxPilot launches it: it attaches or switches to a running session,
+`tmuxinator start`s a layout, or opens a fresh session in a directory.
+
+## Expand a session into its windows
+
+Running sessions unfold into a tree. Press <code>l</code> or <kbd>Space</kbd> on
+a session to reveal its windows — each with its pane count, agent count, and last
+activity — then press <kbd>Enter</kbd> on a window to switch straight to it.
+<code>h</code> collapses the session again.
+
+<DemoClip name="tree" caption="l / Space expands a session into its windows; Enter jumps to one; h collapses." />
+
+## Agent awareness
+
+The reason MuxPilot exists is the last item on that list. When you run several
+coding agents across tmux sessions, it is easy to lose track of which one is
+working, which is waiting on you, and which is idle. MuxPilot reads agent hooks
+when they are available and falls back to process and pane signals otherwise, so
+the picker can show which sessions have an agent running _right now_.
+
+Every view that renders state also has a `--json` twin, so the same data can
+feed a tmux status line, a sidebar pane, or your own tooling.
+
+## Two ways to run it
+
+- **Interactive picker** — the native tmux-friendly TUI. Launch it from a key
+  binding in a `display-popup`. See the [tmux plugin guide](/docs/tmux-plugin).
+- **Scriptable subcommands** — `state`, `agents`, `doctor`, `switch`, and
+  friends, each with a JSON output. See the [CLI reference](/docs/cli).
+
+Ready to install? Head to [Installation](/docs/installation).

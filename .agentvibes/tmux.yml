@@ -1,0 +1,35 @@
+# .agentvibes/tmux.yml — tmuxinator layout (committed; rides with the repo).
+# Banners only — NOTHING auto-runs (not the agent, not the server, not tests).
+# Regenerate:  tmux-init                            (reads .agentvibes/project.toml)
+# Bring up:    tmuxinator start -p .agentvibes/tmux.yml   (or pick it in  prefix+s)
+name: MuxPilot
+root: .
+startup_window: agent
+windows:
+  - agent:
+      - clear
+      - 'echo "▌ AGENT · plain bash — the coding agent is never auto-started"'
+      - 'echo "  start it yourself (cc wrapper · keywords combine, order-free):"'
+      - 'echo "    cc                  fresh · auto-perms"'
+      - 'echo "    cc r                resume — pick a past session"'
+      - 'echo "    cc c                continue the most recent here"'
+      - 'echo "    cc yolo r           resume + skip-permissions (YOLO)"'
+      - 'echo "    cc n muxpilot       name it → prompt box · /resume · terminal title"'
+  - editor:
+      - clear
+      - 'echo "▌ EDITOR · your editor lives here"'
+      - 'echo "    nvim .              open the tree"'
+      - 'echo "    lazygit             visual stage / commit"'
+  - dev:
+      - clear
+      - 'echo "▌ DEV · Rust CLI + placeholder Next.js site — auto-runs nothing"'
+      - 'echo "    cargo test          run Rust suite"'
+      - 'echo "    cargo clippy -- -D warnings"'
+      - 'echo "    pnpm web:dev        start docs/product site on :3001"'
+  - shell:
+      - clear
+      - 'echo "▌ SHELL · git · gh · scratch"'
+      - 'echo "    git status -sb"'
+      - 'echo "    gh repo view yatsyk/muxpilot"'
+      - 'echo "    repo-sync --report   convergence / identity check"'
+      - 'echo "    cargo run -p muxpilot -- --help"'

@@ -1,0 +1,91 @@
+export const metadata = {
+  title: "CLI reference",
+  description:
+    "The muxpilot command surface: the interactive picker, --fzf, --list, doctor, commands, state, agents, switch, window, pane, panel, and toggle-panel.",
+};
+
+# CLI reference
+
+<p className="lede">
+  Running <code>muxpilot</code> with no arguments opens the native interactive
+  picker. Everything else is a subcommand or flag. Most read-only views accept{" "}
+  <code>--json</code> (or <code>--format json</code>) for a machine-readable
+  twin.
+</p>
+
+```text
+muxpilot
+
+  default                                native interactive picker
+  --fzf                                  use fzf picker fallback
+  --list [--json|--format json]          print picker rows
+  doctor [--json|--format json]          check tmux/fzf and tmux context
+  commands [--json|--format json]        describe command surface
+  state [--json|--format json] [--capture]
+                                         print tmux session/window/pane state
+  agents [--json|--format json] [--capture]
+                                         print detected agent panes
+  switch <session>                       switch/attach to session
+  window <window-id>                     select tmux window
+  pane <pane-id>                         select tmux pane
+  panel                                  watch compact state for sidebar panes
+  toggle-panel                           toggle a tmux sidebar pane running panel mode
+```
+
+## Picker
+
+| Command | Description |
+| --- | --- |
+| `muxpilot` | Open the native interactive picker (the default). |
+| `muxpilot --fzf` | Use the `fzf` picker fallback instead of the native TUI. |
+| `muxpilot --list` | Print picker rows to stdout without launching anything. Add `--json` for structured rows. |
+
+The native picker is the recommended entry point — bind it to a key in a tmux
+`display-popup`. See the [tmux plugin guide](/docs/tmux-plugin) and
+[Configuration](/docs/configuration) for keybindings.
+
+## Inspection
+
+| Command | Description |
+| --- | --- |
+| `muxpilot doctor` | Check that tmux and fzf are available and report the current tmux context. |
+| `muxpilot commands` | Describe the command surface (useful for wrappers and completions). |
+| `muxpilot state` | Print the tmux session / window / pane tree. Add `--capture` to include pane content, `--json` for structured output. |
+| `muxpilot agents` | Print detected agent panes and their state. Accepts `--capture` and `--json`. |
+
+`state` and `agents` are the two commands you pipe into other tools. For
+example, a status line can poll `muxpilot state --json` and a sidebar can render
+`muxpilot agents --json`.
+
+## Actions
+
+| Command | Description |
+| --- | --- |
+| `muxpilot switch <session>` | Switch to (or attach to) the named tmux session. |
+| `muxpilot window <window-id>` | Select the given tmux window. |
+| `muxpilot pane <pane-id>` | Select the given tmux pane. |
+
+These are the same actions the picker performs when you press Enter — exposed as
+subcommands so you can bind them directly or call them from scripts.
+
+## Panels
+
+| Command | Description |
+| --- | --- |
+| `muxpilot panel` | Watch compact state, formatted for a narrow tmux sidebar pane. |
+| `muxpilot toggle-panel` | Toggle a tmux sidebar pane that runs `panel` mode. |
+
+Bind `toggle-panel` to a key to pop a live MuxPilot sidebar in and out of the
+current window. See [Configuration](/docs/configuration) for an example binding.
+
+## For maintainers
+
+MuxPilot ships a hidden `demo` command used to record screenshots and videos
+with deterministic, fake data:
+
+```bash
+muxpilot demo --count 8   # render the picker populated with 8 fake sessions/agents
+```
+
+It is not part of the day-to-day surface — it exists so the
+[marketing video pipeline](/docs/introduction) can capture a stable UI.

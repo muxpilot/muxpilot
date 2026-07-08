@@ -1,0 +1,77 @@
+export const metadata = {
+  title: "Installation",
+  description:
+    "Install MuxPilot with cargo or build it from source. The binary is named muxpilot.",
+};
+
+# Installation
+
+<p className="lede">
+  MuxPilot is a single Rust binary named <code>muxpilot</code>. Build it from the
+  workspace or install it onto your <code>PATH</code> with cargo.
+</p>
+
+## Requirements
+
+- **Rust** 1.75+ (stable) with `cargo`.
+- **tmux** 3.3+ — MuxPilot drives tmux directly.
+- **fzf** — optional, only needed for the `--fzf` picker fallback.
+- **zoxide** — optional, enables frecent-directory discovery.
+
+## Build from source
+
+Clone the repository and build the `muxpilot` crate in release mode:
+
+```bash
+git clone https://github.com/yatsyk/muxpilot
+cd muxpilot
+cargo build --release -p muxpilot
+```
+
+The binary lands at `target/release/muxpilot`. Run it straight from there, or
+put it on your `PATH`:
+
+```bash
+# Symlink into a directory already on PATH
+ln -sf "$PWD/target/release/muxpilot" ~/.local/bin/muxpilot
+
+# Verify
+muxpilot --help
+```
+
+## Install with cargo
+
+To install the binary into your cargo bin directory (`~/.cargo/bin`), run
+`cargo install` against the crate path:
+
+```bash
+cargo install --path crates/muxpilot
+```
+
+Once published to crates.io this becomes:
+
+```bash
+cargo install muxpilot
+```
+
+## Verify the environment
+
+MuxPilot ships a `doctor` command that checks tmux, fzf, and the current tmux
+context so you can confirm everything is wired up:
+
+```bash
+muxpilot doctor
+muxpilot doctor --json   # machine-readable
+```
+
+## Development
+
+To work on MuxPilot itself, use the standard cargo workflow:
+
+```bash
+cargo test
+cargo run -p muxpilot -- --help
+```
+
+Next: wire it into tmux as a [plugin](/docs/tmux-plugin), or explore the
+[CLI reference](/docs/cli).
