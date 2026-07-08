@@ -700,7 +700,7 @@ fn tree_expansion_inserts_window_rows_and_toggles() {
 
     // Expand the session at cursor 0 — cursor stays on the parent.
     let sel = selectable_rows(&entries, &filtered, &expanded);
-    let cursor = apply_tree_key(TreeKey::Expand, &sel, &entries, &filtered, &mut expanded, 0);
+    let cursor = apply_tree_key(TreeKey::EntryToggle, &sel, &entries, &filtered, &mut expanded, 0);
     assert_eq!(cursor, 0);
     assert!(expanded.contains("work"));
 
@@ -730,7 +730,7 @@ fn tree_expand_is_noop_on_non_session_rows() {
     let mut expanded: HashSet<String> = HashSet::new();
     let sel = selectable_rows(&entries, &filtered, &expanded);
     // Cursor 1 is the configured project — nothing to expand.
-    let cursor = apply_tree_key(TreeKey::Expand, &sel, &entries, &filtered, &mut expanded, 1);
+    let cursor = apply_tree_key(TreeKey::EntryToggle, &sel, &entries, &filtered, &mut expanded, 1);
     assert_eq!(cursor, 1);
     assert!(expanded.is_empty());
 }

@@ -117,7 +117,10 @@ fn build_display_rows(
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TreeKey {
     Toggle,
-    Expand,
+    /// Toggle open/closed on a session row; a no-op on a window child. Lets
+    /// `l`/→ both open a collapsed session and close an expanded one, without
+    /// surprise-collapsing when pressed on a leaf window.
+    EntryToggle,
     Collapse,
 }
 
@@ -146,9 +149,8 @@ pub(crate) fn apply_tree_key(
             };
             let open = expanded.contains(session);
             let should_open = match key {
-                TreeKey::Expand => true,
                 TreeKey::Collapse => false,
-                TreeKey::Toggle => !open,
+                TreeKey::Toggle | TreeKey::EntryToggle => !open,
             };
             if should_open {
                 expanded.insert(session.clone());
@@ -160,7 +162,7 @@ pub(crate) fn apply_tree_key(
         // On a window child, collapse/toggle closes the parent and moves the
         // cursor back up to it; expand is a no-op.
         Selectable::Window { pos, .. } => match key {
-            TreeKey::Expand => cursor,
+            TreeKey::EntryToggle => cursor,
             TreeKey::Collapse | TreeKey::Toggle => {
                 if let Some(session) = filtered.get(*pos).and_then(|idx| entries[*idx].session.as_ref())
                 {

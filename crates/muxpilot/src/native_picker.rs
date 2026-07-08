@@ -200,7 +200,8 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
                 let step = (picker_body_rows(rows as usize) / 2).max(1);
                 cursor = cursor.saturating_sub(step);
             }
-            // Tree: expand a running session into its windows / collapse it.
+            // Tree: Space and l/→ both toggle the selected session open/closed
+            // into its windows; h/← collapses.
             KeyCode::Char(' ') if !edit_filter && !show_help => {
                 cursor = apply_tree_key(
                     TreeKey::Toggle,
@@ -213,7 +214,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             }
             KeyCode::Char('l') | KeyCode::Right if !edit_filter && !show_help => {
                 cursor = apply_tree_key(
-                    TreeKey::Expand,
+                    TreeKey::EntryToggle,
                     &selectables,
                     &entries,
                     &filtered,

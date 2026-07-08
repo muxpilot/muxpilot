@@ -371,7 +371,7 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
             }
             KeyCode::Char('l') | KeyCode::Right if !edit_filter && !show_help => {
                 cursor = apply_tree_key(
-                    TreeKey::Expand,
+                    TreeKey::EntryToggle,
                     &selectables,
                     &entries,
                     &filtered,

@@ -341,7 +341,8 @@ pub(crate) const THEME_LIGHT: Theme = Theme {
 pub(crate) const KEY_BINDINGS: &[(&str, &str, &str)] = &[
     ("Enter", "open", "switch/start selected workspace or window"),
     ("j/k or Up/Down", "move", "move selected row"),
-    ("Space or l/h", "expand", "expand/collapse session into its windows"),
+    ("Space or l/→", "tree", "toggle selected session open/closed into windows"),
+    ("h or ←", "close", "collapse the session's window tree"),
     ("g/G", "edge", "jump to first/last row"),
     ("Ctrl-D/Ctrl-U", "page", "move half page down/up"),
     ("/", "filter", "edit filter"),
@@ -372,7 +373,7 @@ pub(crate) fn native_help_body() -> Vec<String> {
         String::new(),
         "Rows".to_string(),
         "  ◆ current workspace, ● running, ○ configured/directory".to_string(),
-        "  Space/l on a running session expands it into └─ window children".to_string(),
+        "  Space/l toggles a running session open/closed into └─ window children".to_string(),
         "   tmux session,  windows,  panes, 󰚩 agents".to_string(),
         "  󰐊 tmuxinator layout/project,  directory,  local config".to_string(),
         "  RUNNING active tmux sessions".to_string(),
