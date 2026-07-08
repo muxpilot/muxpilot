@@ -22,6 +22,7 @@
   --warning: #be8420;
   --warning-soft: #f6ecd7;
   --shadow: 0 1px 2px rgb(31 30 27 / 4%), 0 18px 44px -26px rgb(31 30 27 / 28%);
+  --spot-dim: rgb(31 30 27 / 42%);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -47,6 +48,7 @@
     --warning: #f0a93c;
     --warning-soft: #33280f;
     --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 22px 50px -26px rgb(0 0 0 / 62%);
+    --spot-dim: rgb(0 0 0 / 62%);
   }
 }
 
@@ -70,6 +72,7 @@
   --warning: #be8420;
   --warning-soft: #f6ecd7;
   --shadow: 0 1px 2px rgb(31 30 27 / 4%), 0 18px 44px -26px rgb(31 30 27 / 28%);
+  --spot-dim: rgb(31 30 27 / 42%);
 }
 
 :root[data-theme="dark"] {
@@ -455,6 +458,197 @@ section.band {
   color: var(--accent);
 }
 
+/* ── feature highlights ────────────────────────────────────────────────── */
+.feat-list {
+  display: grid;
+  gap: 30px;
+}
+
+.feat {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 36px;
+  align-items: center;
+}
+
+.feat-rev .feat-copy {
+  order: 2;
+}
+
+.feat-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 10px;
+}
+
+.feat-title {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+
+.feat-blurb {
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 46ch;
+}
+
+.feat-blurb code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+.feat-blurb strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* frame — reuses the demo terminal look */
+.feat-frame {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.feat-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.feat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 16px 0 0 var(--border-strong), 32px 0 0 var(--border-strong);
+  margin-right: 26px;
+}
+
+.feat-bar .nm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.feat-bar .conn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.feat-bar .conn i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--success);
+}
+
+/* screenshot + spotlight */
+.feat-shot {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-subtle);
+}
+
+.feat-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.feat-spot {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: 7px;
+  box-shadow:
+    0 0 0 2000px var(--spot-dim),
+    0 0 26px -2px color-mix(in srgb, var(--accent) 70%, transparent);
+  pointer-events: none;
+}
+
+.feat-pill {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--accent-ink);
+  background: var(--accent);
+  padding: 5px 9px;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px -3px rgb(0 0 0 / 35%);
+}
+
+/* pill hangs just outside the chosen corner of the spotlight */
+.anch-tl .feat-pill {
+  top: -10px;
+  left: -2px;
+  transform: translateY(-100%);
+}
+.anch-tr .feat-pill {
+  top: -10px;
+  right: -2px;
+  transform: translateY(-100%);
+}
+.anch-bl .feat-pill {
+  bottom: -10px;
+  left: -2px;
+  transform: translateY(100%);
+}
+.anch-br .feat-pill {
+  bottom: -10px;
+  right: -2px;
+  transform: translateY(100%);
+}
+
+/* json frame */
+.feat-code {
+  margin: 0;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+  background: var(--surface);
+  tab-size: 2;
+}
+
+.feat-code .j-key {
+  color: var(--accent);
+}
+.feat-code .j-str {
+  color: var(--success);
+}
+.feat-code .j-num {
+  color: var(--warning);
+}
+.feat-code .j-lit {
+  color: var(--text-3);
+}
+
 footer {
   padding: 36px 0 56px;
   border-top: 1px solid var(--border);
@@ -731,6 +925,20 @@ footer a:hover {
 
   .grid3 {
     grid-template-columns: 1fr;
+  }
+
+  .feat {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  /* stack with the screenshot above its copy, regardless of row parity */
+  .feat-frame {
+    order: 1;
+  }
+  .feat-copy,
+  .feat-rev .feat-copy {
+    order: 2;
   }
 
   .nav a.link {
