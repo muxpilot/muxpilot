@@ -11,8 +11,15 @@ windows, and panes running coding agents are detected and surfaced inline.
 ## Install
 
 ```bash
-cargo install muxpilot
+cargo install muxpilot                # crates.io
+brew install muxpilot/tap/muxpilot    # Homebrew
+npm i -g muxpilot                     # npm (or: npx muxpilot)
 ```
+
+Prebuilt binaries and a shell installer are on the [releases page][releases].
+Site: <https://muxpilot.n.yatsyk.com>
+
+[releases]: https://github.com/muxpilot/muxpilot/releases/latest
 
 ## Usage
 
