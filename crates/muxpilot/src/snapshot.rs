@@ -370,6 +370,84 @@ fn infer_agent(
     })
 }
 
+/// Approval-style prompts — the agent is blocked on a permission/confirm gate.
+const APPROVE_NEEDLES: &[&str] = &[
+    "continue?",
+    "do you want to",
+    "proceed?",
+    "approve",
+    "approval",
+    "press enter",
+    "y/n",
+    "yes/no",
+    "[y/n]",
+    "❯ 1.",
+    "1. yes",
+];
+/// The agent is actively producing output / running a tool.
+const WORKING_NEEDLES: &[&str] = &[
+    "esc to interrupt",
+    "esc to stop",
+    "ctrl+c to interrupt",
+    "thinking…",
+    "thinking...",
+    "working…",
+    "working...",
+    "running…",
+    "running...",
+    "generating…",
+    "generating...",
+];
+/// The agent asked a free-form question and is waiting on a typed answer.
+const WAIT_INPUT_NEEDLES: &[&str] = &["esc to cancel", "waiting for your"];
+/// Braille spinner frames the TUIs animate while busy.
+const SPINNER_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷";
+
+fn contains_spinner(text: &str) -> bool {
+    text.chars().any(|c| SPINNER_CHARS.contains(c))
+}
+
+/// Whether a line is an empty ready-prompt (`>` / `❯`) once box-drawing and
+/// whitespace are stripped — the shape an idle agent's input box takes.
+fn is_ready_prompt(line: &str) -> bool {
+    let core: String = line
+        .chars()
+        .filter(|c| !c.is_whitespace() && !"│|╭╮╰╯─╌┆┊>❯".contains(*c))
+        .collect();
+    core.is_empty() && (line.contains('>') || line.contains('❯'))
+}
+
+/// Classify a captured pane's screen into an agent status. Pure over the text
+/// so it is unit-testable; only the tail (the live status area) is inspected.
+/// Returns `(status, confidence, wait_reason)`. This is the fallback tier —
+/// used only for hook-less agents — but it is what lets MuxPilot show
+/// working/idle where hook-only competitors show nothing.
+fn classify_capture(text: &str) -> (PaneAgentStatus, u8, &'static str) {
+    let tail: String = text
+        .lines()
+        .rev()
+        .filter(|l| !l.trim().is_empty())
+        .take(6)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let lower = tail.to_ascii_lowercase();
+
+    // Ordered by urgency: an approval gate outranks a busy spinner (an agent can
+    // render both while it waits), which outranks a plain input prompt, which
+    // outranks an empty idle prompt.
+    if APPROVE_NEEDLES.iter().any(|n| lower.contains(n)) {
+        (PaneAgentStatus::WaitingApprove, 80, "approval prompt on screen")
+    } else if WORKING_NEEDLES.iter().any(|n| lower.contains(n)) || contains_spinner(&tail) {
+        (PaneAgentStatus::Working, 70, "")
+    } else if WAIT_INPUT_NEEDLES.iter().any(|n| lower.contains(n)) {
+        (PaneAgentStatus::WaitingInput, 65, "input prompt on screen")
+    } else if tail.lines().any(is_ready_prompt) {
+        (PaneAgentStatus::Idle, 55, "")
+    } else {
+        (PaneAgentStatus::Unknown, 50, "")
+    }
+}
+
 fn capture_pane_text(pane_id: &str) -> String {
     tmux(&["capture-pane", "-pt", pane_id, "-S", "-80"])
 }
@@ -389,42 +467,18 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
         return;
     };
 
-    let waiting = [
-        "continue?",
-        "do you want to",
-        "proceed?",
-        "approve",
-        "approval",
-        "press enter",
-        "y/n",
-        "yes/no",
-        "❯ 1.",
-    ]
-    .iter()
-    .any(|needle| lower.contains(needle));
-
-    // The waiting needles above are approval prompts. A visible-but-not-waiting
-    // agent is left `Unknown` here; distinguishing working vs idle from the
-    // screen is T2's job.
-    let status = if waiting {
-        PaneAgentStatus::WaitingApprove
-    } else {
-        PaneAgentStatus::Unknown
-    };
-    let wait_reason = if waiting {
-        "screen prompt or approval text".to_string()
-    } else {
-        String::new()
-    };
+    let (status, conf, wait_reason) = classify_capture(&text);
 
     match &mut pane.agent {
+        // Capture refines a non-hook detection: it can upgrade an Unknown into a
+        // real state and raise confidence, but never overrides a hook.
         Some(agent) if !matches!(agent.source, AgentStateSource::Hook) => {
-            if waiting {
+            if status != PaneAgentStatus::Unknown {
                 agent.status = status;
                 agent.attention = status.needs_attention();
-                agent.wait_reason = wait_reason;
+                agent.wait_reason = wait_reason.to_string();
             }
-            agent.confidence = agent.confidence.max(90);
+            agent.confidence = agent.confidence.max(conf);
             agent.evidence.push("capture-pane".to_string());
         }
         None => {
@@ -432,9 +486,9 @@ fn infer_from_capture(pane_id: &str, pane: &mut TmuxPane) {
                 kind,
                 status,
                 source: AgentStateSource::CapturePane,
-                confidence: if waiting { 80 } else { 50 },
+                confidence: conf,
                 attention: status.needs_attention(),
-                wait_reason,
+                wait_reason: wait_reason.to_string(),
                 evidence: vec!["capture-pane".to_string()],
             });
         }
@@ -626,6 +680,35 @@ mod pane_status_tests {
         let max_calm = calm.iter().map(|s| s.severity()).max().unwrap();
         assert!(min_attention > max_calm);
         assert_eq!(PaneAgentStatus::WaitingApprove.severity(), 7);
+    }
+
+    #[test]
+    fn classify_capture_reads_common_agent_screens() {
+        use PaneAgentStatus::*;
+        // Working: spinner and/or an interrupt hint.
+        assert_eq!(classify_capture("⠹ Thinking… (esc to interrupt)").0, Working);
+        assert_eq!(classify_capture("out\n· Running a tool (esc to stop)").0, Working);
+        // Approval gate outranks a spinner rendered alongside it.
+        assert_eq!(
+            classify_capture("⠋ Do you want to proceed?\n❯ 1. Yes\n  2. No").0,
+            WaitingApprove
+        );
+        // Free-form input prompt.
+        assert_eq!(classify_capture("Type your answer (esc to cancel)").0, WaitingInput);
+        // Idle: an empty ready-prompt box as the tail.
+        assert_eq!(classify_capture("done.\n╭─────╮\n│ >   │\n╰─────╯").0, Idle);
+        // Indeterminate scrollback (note: `>` inside a command is not a prompt).
+        assert_eq!(classify_capture("ran: cat a > b.txt\nplain text").0, Unknown);
+    }
+
+    #[test]
+    fn classify_capture_confidence_tracks_status() {
+        let (status, conf, reason) = classify_capture("Approve this action? (y/n)");
+        assert_eq!((status, conf), (PaneAgentStatus::WaitingApprove, 80));
+        assert!(status.needs_attention());
+        assert!(!reason.is_empty());
+        assert_eq!(classify_capture("⠋ working…").1, 70);
+        assert!(!classify_capture("⠋ working…").0.needs_attention());
     }
 
     #[test]
