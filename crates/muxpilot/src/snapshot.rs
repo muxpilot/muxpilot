@@ -58,11 +58,13 @@ pub struct AgentState {
     pub attention: bool,
     pub wait_reason: String,
     pub evidence: Vec<String>,
-    /// Content changed since the previous snapshot — an honest "working now"
-    /// light immune to spinner repaints (T3). Only set from the capture path.
+    /// The pane's captured screen changed since the previous snapshot (T3) — a
+    /// secondary "moving now" signal. Note this hashes the whole capture, so a
+    /// live spinner counts as a change; the primary working/idle decision keys
+    /// off `status` and treats this only as a booster. Set from the capture path.
     pub is_active: bool,
-    /// Epoch seconds when the pane content last changed (T3). More trustworthy
-    /// than tmux `pane_activity`, which a repainting spinner keeps fresh forever.
+    /// Epoch seconds when the captured screen last changed (T3). Only meaningful
+    /// alongside `is_active`; it measures any screen delta, spinner frames included.
     pub last_change: Option<u64>,
 }
 
@@ -115,6 +117,21 @@ impl PaneAgentStatus {
             self,
             Self::WaitingApprove | Self::WaitingInput | Self::Error | Self::RateLimited
         )
+    }
+
+    /// Short label for the narrow picker status column, where the full kebab
+    /// name would truncate. The glyph carries the fine-grained state.
+    pub fn short_label(self) -> &'static str {
+        match self {
+            Self::Working => "work",
+            Self::WaitingApprove => "appr",
+            Self::WaitingInput => "input",
+            Self::Idle => "idle",
+            Self::Error => "err",
+            Self::RateLimited => "rate",
+            Self::Parked => "park",
+            Self::Unknown => "?",
+        }
     }
 
     /// A distinct glyph per state for the picker's status column and the fleet
@@ -528,9 +545,16 @@ fn load_pane_activity() -> HashMap<String, PaneActivity> {
 }
 
 /// Persist only the panes seen this pass, so the store self-prunes as panes die.
+/// Writes to a temp file and renames into place so a concurrent picker never
+/// reads a truncated store.
 fn save_pane_activity(map: &HashMap<String, PaneActivity>) {
-    if let Ok(text) = serde_json::to_string(map) {
-        let _ = std::fs::write(pane_activity_cache_path(), text);
+    let Ok(text) = serde_json::to_string(map) else {
+        return;
+    };
+    let path = pane_activity_cache_path();
+    let tmp = format!("{path}.{}.tmp", std::process::id());
+    if std::fs::write(&tmp, text).is_ok() && std::fs::rename(&tmp, &path).is_err() {
+        let _ = std::fs::remove_file(&tmp);
     }
 }
 
@@ -565,15 +589,19 @@ fn infer_from_capture(
     let last_change = Some(record.last_change);
 
     match &mut pane.agent {
-        // Capture refines a non-hook detection: it can upgrade an Unknown into a
-        // real state and raise confidence, but never overrides a hook.
-        Some(agent) if !matches!(agent.source, AgentStateSource::Hook) => {
-            if status != PaneAgentStatus::Unknown {
+        Some(agent) => {
+            // A hook is authoritative for status; capture only refines a non-hook
+            // detection (upgrading Unknown into a real state). The content-activity
+            // signal, however, applies to every source — including hooks — so it is
+            // set unconditionally below.
+            if !matches!(agent.source, AgentStateSource::Hook)
+                && status != PaneAgentStatus::Unknown
+            {
                 agent.status = status;
                 agent.attention = status.needs_attention();
                 agent.wait_reason = wait_reason.to_string();
+                agent.confidence = agent.confidence.max(conf);
             }
-            agent.confidence = agent.confidence.max(conf);
             agent.is_active = is_active;
             agent.last_change = last_change;
             agent.evidence.push("capture-pane".to_string());
@@ -591,7 +619,6 @@ fn infer_from_capture(
                 last_change,
             });
         }
-        _ => {}
     }
 }
 
@@ -647,9 +674,12 @@ impl MuxBackend for TmuxBackend {
                 ),
                 role: parts[16].to_string(),
             };
-            // Only scrape known-agent panes — bounds the cost to the handful of
-            // agents rather than every shell/editor pane on the machine.
-            if options.capture_pane && pane.agent.is_some() {
+            // Capture every pane when enabled: besides refining known agents,
+            // this keeps the screen-only detection path alive (an agent visible
+            // on screen that process/command matching missed). infer_from_capture
+            // returns early for panes with no agent signal, so the cost is a
+            // capture-pane call per pane on open/refresh only.
+            if options.capture_pane {
                 let pane_id = pane.id.clone();
                 infer_from_capture(
                     &pane_id,

@@ -289,8 +289,11 @@ fn draw_status(
         }
         format!("  ·  {}", parts.join(" "))
     };
+    // The filter echo (what the user is actively typing) comes before the fleet
+    // counts, so on a narrow status bar the static counts truncate first and the
+    // live filter text is preserved.
     let status = format!(
-        "  {shown}/{total} · {} · {}{fleet_note}{filter_note}",
+        "  {shown}/{total} · {} · {}{filter_note}{fleet_note}",
         view.screen.label(),
         view.mode.label(),
     );

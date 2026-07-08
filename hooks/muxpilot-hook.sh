@@ -27,7 +27,16 @@ command -v tmux >/dev/null 2>&1 || exit 0
 
 event="${1:-}"
 agent="${MUXPILOT_AGENT:-claude}"
-now_ms=$(( $(date +%s%N 2>/dev/null || echo 0) / 1000000 ))
+# %N is GNU-only; BSD/macOS date emits a literal "N". Strip non-digits, then pick
+# the unit by width: GNU %s%N is ~19 digits (secs+nanos) → /1e6 for ms; BSD gives
+# ~10 digits (secs) → *1000. Same formula every call keeps the guard monotonic.
+now_raw="$(date +%s%N 2>/dev/null || echo)"
+now_raw="${now_raw//[!0-9]/}"
+if [ "${#now_raw}" -ge 13 ]; then
+  now_ms=$(( now_raw / 1000000 ))
+else
+  now_ms=$(( ${now_raw:-0} * 1000 ))
+fi
 payload="$(cat 2>/dev/null || true)"
 
 get() { tmux show-options -pqv -t "$pane" "$1" 2>/dev/null || true; }
@@ -53,7 +62,12 @@ case "$event" in
   SubagentStart)
     subs=$((subs + 1)); put @pane_subagents "$subs"; status="working" ;;
   SubagentStop)
-    subs=$(( subs > 0 ? subs - 1 : 0 )); put @pane_subagents "$subs" ;;
+    subs=$(( subs > 0 ? subs - 1 : 0 )); put @pane_subagents "$subs"
+    # Only settle to idle if the parent Stop already raced ahead (deferred while
+    # this subagent was live). If the parent is still working, stay working.
+    if [ "$subs" -eq 0 ] && [ "$(get @pane_stop_pending)" = "1" ]; then
+      put @pane_stop_pending 0; status="idle"; attention="clear"
+    fi ;;
   Notification)
     case "$payload" in
       *permission_prompt*)  status="waiting-approve"; attention="1"; wait_reason="permission" ;;
@@ -61,8 +75,9 @@ case "$event" in
       *)                    : ;;
     esac ;;
   Stop)
-    # Don't declare done while subagents (which share this pane) are still live.
-    [ "$subs" -gt 0 ] && exit 0
+    # Don't declare done while subagents (which share this pane) are still live —
+    # defer via a flag; the last SubagentStop settles the pane.
+    if [ "$subs" -gt 0 ]; then put @pane_stop_pending 1; exit 0; fi
     status="idle"; attention="clear" ;;
   StopFailure)
     case "$payload" in
@@ -72,6 +87,7 @@ case "$event" in
   SessionEnd)
     unset_opt @pane_agent; unset_opt @pane_status; unset_opt @pane_attention
     unset_opt @pane_wait_reason; unset_opt @pane_status_ts; unset_opt @pane_subagents
+    unset_opt @pane_stop_pending
     exit 0 ;;
   *) : ;;
 esac

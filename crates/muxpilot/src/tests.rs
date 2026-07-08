@@ -336,9 +336,9 @@ fn native_entries_merge_workspace_capabilities() {
         workspace.line
     );
     // The fixture agent is is_active=true, so the status column shows the honest
-    // "working" label (T3) rather than a generic "agent".
+    // "work" label (T3) rather than a generic "agent".
     assert!(
-        workspace.line.contains("working"),
+        workspace.line.contains("work"),
         "agent working status: {}",
         workspace.line
     );
@@ -793,7 +793,9 @@ fn fleet_summary_counts_by_coarse_state() {
         agent_pane("%4", PaneAgentStatus::Unknown, false, false),
     ]);
     let f = crate::workspace_entries::fleet_summary(&snap);
-    assert_eq!((f.waiting, f.working, f.idle), (1, 1, 2));
+    // %1 waiting-approve -> waiting, %2 Working+active -> working, %3 idle -> idle;
+    // %4 Unknown is not asserted as idle (it was never observed).
+    assert_eq!((f.waiting, f.working, f.idle), (1, 1, 1));
     assert!(!f.is_empty());
 }
 
@@ -816,4 +818,25 @@ fn session_row_bubbles_worst_agent_state_glyph() {
         "expected approval glyph in: {}",
         row.line
     );
+}
+
+#[test]
+fn working_status_renders_without_content_delta() {
+    // Regression (Wave 1 review): status=Working with is_active=false — e.g. a hook
+    // report, or the first picker open before any content diff exists — must render
+    // "work" and count as working, not idle.
+    let snap = one_session_snapshot(vec![agent_pane(
+        "%1",
+        PaneAgentStatus::Working,
+        false,
+        false,
+    )]);
+    let f = crate::workspace_entries::fleet_summary(&snap);
+    assert_eq!((f.waiting, f.working, f.idle), (0, 1, 0));
+    let entries = build_native_entries(&MenuModel::default(), &snap);
+    let row = entries
+        .iter()
+        .find(|e| e.line.contains("proj"))
+        .expect("proj row");
+    assert!(row.line.contains("work"), "expected work label: {}", row.line);
 }

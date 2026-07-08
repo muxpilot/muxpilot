@@ -54,11 +54,12 @@ pub(crate) fn fleet_summary(snapshot: &TmuxSnapshot) -> FleetSummary {
                 if let Some(agent) = &pane.agent {
                     if agent.attention {
                         s.waiting += 1;
-                    } else if agent.is_active {
+                    } else if agent.status == PaneAgentStatus::Working || agent.is_active {
                         s.working += 1;
-                    } else {
+                    } else if agent.status == PaneAgentStatus::Idle {
                         s.idle += 1;
                     }
+                    // Unknown/Parked are not asserted as idle — they weren't observed.
                 }
             }
         }
@@ -222,22 +223,25 @@ fn relative_activity(timestamp: Option<u64>) -> String {
 
 fn workspace_activity(row: &WorkspaceRow) -> String {
     if !row.agents.is_empty() {
-        // Attention states carry their own glyph+label so the row says *what*
-        // needs the user (T4 severity bubble). agent_attention can also be set
-        // by a hook flag on a non-attention status, hence the fallback.
+        // Attention states win — the row says *what* needs the user (T4 severity
+        // bubble). agent_attention can also be set by a hook flag on a
+        // non-attention status, hence the fallback.
         if row.agent_attention {
             if let Some(status) = row.agent_status.filter(|s| s.needs_attention()) {
-                return format!("{} {}", status.glyph(), status.as_str());
+                return format!("{} {}", status.glyph(), status.short_label());
             }
-            return format!("{} attention", PaneAgentStatus::WaitingInput.glyph());
+            return format!("{} attn", PaneAgentStatus::WaitingInput.glyph());
         }
-        // Honest state (T3): a live spinner only when content is actually
-        // changing; otherwise the agent is sitting idle at its prompt.
-        return if row.agent_active {
-            format!("{} working", spinner_frame())
-        } else {
-            format!("{} idle", PaneAgentStatus::Idle.glyph())
-        };
+        // Working when the status says so (hook or screen classification) OR the
+        // screen is actively changing (T3). Keying off status too is what makes
+        // a hook-reported `working` — and the first picker open — render right.
+        if row.agent_status == Some(PaneAgentStatus::Working) || row.agent_active {
+            return format!("{} work", spinner_frame());
+        }
+        // Otherwise show the bubbled state honestly — an idle prompt reads
+        // `idle`, a process-only detection reads `?`, not a blanket idle.
+        let status = row.agent_status.unwrap_or(PaneAgentStatus::Unknown);
+        return format!("{} {}", status.glyph(), status.short_label());
     }
     if row.session.is_some() {
         return "active".to_string();
