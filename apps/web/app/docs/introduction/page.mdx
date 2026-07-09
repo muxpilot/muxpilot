@@ -34,6 +34,18 @@ emoji-prefixed menu you drive with the keyboard:
 Pick one and MuxPilot launches it: it attaches or switches to a running session,
 `tmuxinator start`s a layout, or opens a fresh session in a directory.
 
+## Tabs for each kind of target
+
+A tab bar across the top splits the inventory into focused views — **Sessions**,
+**Agents**, **Layouts**, **Dirs** — each its own list. Switch with the letter on
+the tab (<kbd>s</kbd> / <kbd>a</kbd> / <kbd>x</kbd> / <kbd>d</kbd>) or cycle with
+<kbd>Tab</kbd>. MuxPilot remembers the tab you last acted from and reopens on it,
+and it homes the cursor to where you already are: the current session in
+**Sessions**, and — when you open from a pane running an agent — that exact agent
+in **Agents**.
+
+<DemoClip name="navigate" caption="A tab per kind of target; switch by letter, and the picker reopens on the tab you last used." />
+
 ## Expand a session into its windows and agents
 
 Running sessions unfold into a tree. Press <code>l</code> or <kbd>Space</kbd> on

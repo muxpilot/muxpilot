@@ -4,6 +4,17 @@ All notable changes to MuxPilot are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Tab bar** — the picker modes (**Sessions / Agents / Layouts / Dirs**) are now
+  a tab bar across the top, switched by their letter (`s` / `a` / `x` / `d`) or
+  cycled with `Tab`, with the active tab highlighted. The picker remembers the
+  tab you last acted from and reopens on it, and homes the cursor to where you
+  are — the current session in Sessions, and the agent on your current pane in
+  Agents.
+
 ## [0.1.1] - 2026-07-09
 
 First feature release after the initial launch — a much richer picker plus a

@@ -38,6 +38,7 @@ pub(crate) struct Labels {
     // Footer action labels.
     pub(crate) action_open: &'static str,
     pub(crate) action_start: &'static str,
+    pub(crate) action_next_mode: &'static str,
     pub(crate) action_tree: &'static str,
     pub(crate) action_filter: &'static str,
     pub(crate) action_help: &'static str,
@@ -77,6 +78,7 @@ pub(crate) const EN: Labels = Labels {
 
     action_open: "open",
     action_start: "start",
+    action_next_mode: "next tab",
     action_tree: "tree",
     action_filter: "filter",
     action_help: "help",

@@ -1,5 +1,6 @@
-# navigate.tape — navigation + scopes. Moves through rows with j/k and g/G, then
-# cycles the search scope with Tab to filter by kind of target.
+# navigate.tape — navigation + the tab bar. Moves through rows with j/k and g/G,
+# then switches tabs by letter (a / x / d / s) — the top tab bar highlights the
+# active mode, and each tab is its own focused list.
 Source themes/muxpilot.tape
 
 Output ../apps/web/public/media/navigate.gif
@@ -17,17 +18,15 @@ Sleep 800ms
 Type "g"
 Sleep 800ms
 
-# Cycle the search scope: all -> sessions -> agents -> projects.
-Tab
-Sleep 800ms
-Tab
-Sleep 800ms
-Tab
+# Switch tabs by letter: Agents -> Layouts -> Dirs -> back to Sessions.
+Type "a"
 Sleep 1s
+Type "x"
+Sleep 1s
+Type "d"
+Sleep 1s
+Type "s"
+Sleep 900ms
 
-# Back to all, then close.
-Tab
-Tab
-Sleep 600ms
 Type "q"
 Sleep 400ms

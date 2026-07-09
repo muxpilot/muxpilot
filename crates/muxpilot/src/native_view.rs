@@ -344,6 +344,35 @@ fn footer_keys(pairs: &[(&str, &str)], cols: usize, theme: &Theme) -> String {
     out
 }
 
+/// Draw the tab bar (row 1, normal height): one chip per mode with its switch
+/// letter, the active tab highlighted. This is the primary mode switcher — the
+/// footer no longer repeats it. Chips truncate from the right on narrow widths.
+fn draw_tab_bar(frame_line: &mut String, cols: usize, active: PickerMode, theme: &Theme) {
+    let mut out = raw_styled("  ", theme.panel);
+    let mut used = 2usize;
+    for m in PickerMode::ALL {
+        let chip = format!(" {} {} ", m.key_label(), m.label());
+        let seg_w = display_width(&chip) + 1; // + inter-chip gap
+        if used + seg_w > cols {
+            break;
+        }
+        if m == active {
+            // Whole chip highlighted — "you are here".
+            out.push_str(&raw_styled(&chip, theme.selected));
+        } else {
+            // Dim chip, but the switch letter stays in the accent key colour.
+            out.push_str(&raw_styled(&format!(" {} ", m.key_label()), theme.key));
+            out.push_str(&raw_styled(&format!("{} ", m.label()), theme.footer));
+        }
+        out.push_str(&raw_styled(" ", theme.panel));
+        used += seg_w;
+    }
+    if used < cols {
+        out.push_str(&raw_styled(&" ".repeat(cols - used), theme.panel));
+    }
+    set_frame_raw_segment(frame_line, 0, &out);
+}
+
 /// Draw the status bar: accent brand + shown/total + scope (+ filter echo).
 fn draw_status(
     frame: &mut [String],
@@ -646,6 +675,11 @@ pub(crate) fn draw_native_picker(
     }
 
     let compact = picker_uses_compact_height(rows);
+    // Tab bar on the otherwise-blank row 1 (normal height only; compact height
+    // has no spare row and keeps the mode in the status text).
+    if !compact && rows > 1 {
+        draw_tab_bar(&mut frame[1], cols, view.mode, theme);
+    }
     let layout = if compact {
         None
     } else {
@@ -808,17 +842,16 @@ fn draw_footer(
         set_frame_segment(&mut frame[last], 0, cols, &footer, theme.filter_active);
         return;
     }
-    // A stable `Sessions · Agents · Layouts · Dirs` switcher plus the actions for
-    // the current mode. footer_keys truncates from the right on narrow terminals.
+    // Mode switching now lives in the top tab bar; the footer carries just the
+    // actions for the current mode. footer_keys truncates from the right on
+    // narrow terminals.
     let l = labels();
     let mut pairs: Vec<(&str, &str)> = Vec::new();
     pairs.push(match view.mode {
         PickerMode::Dirs | PickerMode::Layouts => ("⏎", l.action_start),
         _ => ("⏎", l.action_open),
     });
-    for m in PickerMode::ALL {
-        pairs.push((m.key_label(), m.label()));
-    }
+    pairs.push(("⇥", l.action_next_mode));
     if view.mode == PickerMode::Sessions {
         pairs.push(("l", l.action_tree));
     }

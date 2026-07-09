@@ -75,6 +75,39 @@ fn selection_at(
     }
 }
 
+/// Where the cursor should land when the picker first opens in `mode`.
+///
+/// Agents mode homes onto the agent living in the *current* pane (so re-opening
+/// while sitting on an agent selects it); every other mode homes onto the
+/// current workspace, marked by the `◆` glyph. Returns `None` to leave the
+/// cursor at the top.
+pub(crate) fn initial_cursor(
+    mode: PickerMode,
+    snapshot: &TmuxSnapshot,
+    entries: &[NativeEntry],
+    filtered: &[usize],
+    selectables: &[Selectable],
+) -> Option<usize> {
+    if mode == PickerMode::Agents {
+        let current = snapshot.current_pane_id.as_str();
+        if !current.is_empty() {
+            if let Some(idx) = selectables.iter().position(|s| {
+                matches!(s, Selectable::Entry(pos) if matches!(
+                    &entries[filtered[*pos]].action,
+                    NativeAction::Select(Selection::Pane { pane_id, .. }) if pane_id == current
+                ))
+            }) {
+                return Some(idx);
+            }
+        }
+    }
+    // The current workspace carries the ◆ glyph as the first char of its line.
+    selectables.iter().position(|s| {
+        matches!(s, Selectable::Entry(pos)
+            if entries[filtered[*pos]].line.starts_with('◆'))
+    })
+}
+
 pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>, AppError> {
     if !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         let menu = build_menu_lines(model).join("\n");
@@ -86,7 +119,9 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
     let _guard = CrosstermGuard::enter()?;
     let keymap = Keymap::defaults();
     let mut snapshot = tmux_snapshot_with_options(PICKER_SNAPSHOT);
-    let mut mode = PickerMode::Sessions;
+    // Open on the tab the user last acted from (e.g. picked an agent → Agents),
+    // defaulting to Sessions the first time.
+    let mut mode = crate::picker_state::load_last_mode().unwrap_or(PickerMode::Sessions);
     let mut entries = entries_for_mode(mode, model, &snapshot);
     let mut fleet = fleet_summary(&snapshot);
     let mut filter = FilterInput::default();
@@ -113,11 +148,9 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
         let selectables = selectable_rows(&entries, &filtered, &expanded);
         if !cursor_homed {
             cursor_homed = true;
-            // The current workspace carries the ◆ glyph as the first char of its line.
-            if let Some(idx) = selectables.iter().position(|s| {
-                matches!(s, Selectable::Entry(pos)
-                    if entries[filtered[*pos]].line.starts_with('◆'))
-            }) {
+            if let Some(idx) =
+                initial_cursor(mode, &snapshot, &entries, &filtered, &selectables)
+            {
                 cursor = idx;
             }
         }
@@ -298,6 +331,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             Some(Action::SwitchMode(target)) => {
                 if target != mode {
                     mode = target;
+                    crate::picker_state::save_last_mode(mode);
                     entries = entries_for_mode(mode, model, &snapshot);
                     filter.clear();
                     cursor = 0;
@@ -305,6 +339,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             }
             Some(Action::NextMode) => {
                 mode = mode.next();
+                crate::picker_state::save_last_mode(mode);
                 entries = entries_for_mode(mode, model, &snapshot);
                 filter.clear();
                 cursor = 0;

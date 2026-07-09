@@ -245,6 +245,21 @@ impl PickerMode {
 
     /// All modes in switch order, for the footer switcher.
     pub(crate) const ALL: [Self; 4] = [Self::Sessions, Self::Agents, Self::Layouts, Self::Dirs];
+
+    /// Stable identifier used to persist the last-used tab across runs.
+    pub(crate) fn as_key(self) -> &'static str {
+        match self {
+            Self::Sessions => "sessions",
+            Self::Agents => "agents",
+            Self::Layouts => "layouts",
+            Self::Dirs => "dirs",
+        }
+    }
+
+    /// Parse a persisted key back into a mode (unknown/blank → None).
+    pub(crate) fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.as_key() == key.trim())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

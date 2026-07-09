@@ -401,6 +401,24 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
                 mode = mode.next();
                 cursor = 0;
             }
+            // Tab-bar letters: jump straight to a mode (mirrors the real picker's
+            // s/a/x/d switch keys) so recordings can show the tabs in action.
+            KeyCode::Char('s') if !edit_filter && !show_help && !ctrl => {
+                mode = SearchMode::Sessions;
+                cursor = 0;
+            }
+            KeyCode::Char('a') if !edit_filter && !show_help && !ctrl => {
+                mode = SearchMode::Agents;
+                cursor = 0;
+            }
+            KeyCode::Char('x') if !edit_filter && !show_help && !ctrl => {
+                mode = SearchMode::Projects;
+                cursor = 0;
+            }
+            KeyCode::Char('d') if !edit_filter && !show_help && !ctrl => {
+                mode = SearchMode::Dirs;
+                cursor = 0;
+            }
             KeyCode::Char('/') if !show_help => edit_filter = true,
             KeyCode::Down | KeyCode::Char('j') if !show_help && !selectables.is_empty() => {
                 cursor = (cursor + 1).min(selectables.len() - 1);

@@ -257,6 +257,52 @@ fn filter_cursor_supports_readline_movement() {
     assert_eq!(filter.text(), "!age-n");
 }
 
+#[test]
+fn picker_mode_key_roundtrips() {
+    use native_state::PickerMode;
+    for m in PickerMode::ALL {
+        assert_eq!(PickerMode::from_key(m.as_key()), Some(m));
+    }
+    assert_eq!(PickerMode::from_key("nonsense"), None);
+    // Tolerates trailing whitespace from a file read.
+    assert_eq!(PickerMode::from_key("agents\n"), Some(PickerMode::Agents));
+}
+
+#[test]
+fn agents_tab_homes_onto_current_pane_agent() {
+    use crate::native_picker::initial_cursor;
+    use crate::native_view::{selectable_rows, Selectable};
+    use native_state::PickerMode;
+    use std::collections::HashSet;
+
+    // Two agent panes; the current pane is %2. Agents mode should home onto it.
+    let snap = one_session_snapshot(vec![
+        agent_pane("%1", PaneAgentStatus::Idle, false, false),
+        agent_pane("%2", PaneAgentStatus::Working, false, true),
+    ]);
+    let snap = TmuxSnapshot {
+        current_pane_id: "%2".to_string(),
+        ..snap
+    };
+    let entries = crate::workspace_entries::build_agent_entries(&snap);
+    let filtered: Vec<usize> = (0..entries.len()).collect();
+    let expanded: HashSet<String> = HashSet::new();
+    let sel = selectable_rows(&entries, &filtered, &expanded);
+
+    let idx = initial_cursor(PickerMode::Agents, &snap, &entries, &filtered, &sel)
+        .expect("homes onto an agent");
+    // The homed row's action targets pane %2.
+    let Selectable::Entry(pos) = &sel[idx] else {
+        panic!("expected an entry row");
+    };
+    let crate::native_state::NativeAction::Select(Selection::Pane { pane_id, .. }) =
+        &entries[filtered[*pos]].action
+    else {
+        panic!("expected a pane selection");
+    };
+    assert_eq!(pane_id, "%2");
+}
+
 #[tokio::test]
 async fn version_flag_runs_and_is_advertised() {
     // `--version` / `-V` / `version` each run cleanly (they print `muxpilot
