@@ -4,7 +4,7 @@ All notable changes to MuxPilot are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - unreleased
+## [0.1.1] - 2026-07-09
 
 First feature release after the initial launch — a much richer picker plus a
 batch of fixes reported against 0.1.0.
@@ -30,6 +30,8 @@ batch of fixes reported against 0.1.0.
 - **Localization scaffolding** (i18n strings module) and a configurable keymap
   table.
 - The picker status bar now shows the running version (`muxpilot vX.Y.Z`).
+- **`--version` / `-V`** prints `muxpilot <semver>` — handy for scripts, and the
+  smoke test package managers (mise, etc.) expect.
 - **Layouts show their path** — the Layouts view renders the tilde-collapsed path
   each layout/project is stored at, middle-elided when it must clip (so the `~/`
   root and the name tail both survive), with the full absolute yaml path in the

@@ -257,6 +257,22 @@ fn filter_cursor_supports_readline_movement() {
     assert_eq!(filter.text(), "!age-n");
 }
 
+#[tokio::test]
+async fn version_flag_runs_and_is_advertised() {
+    // `--version` / `-V` / `version` each run cleanly (they print `muxpilot
+    // <semver>` to stdout). ExitCode isn't comparable, so assert Ok.
+    for arg in ["--version", "-V", "version"] {
+        assert!(
+            crate::run(vec![arg.to_string()]).await.is_ok(),
+            "version flag runs: {arg}"
+        );
+    }
+    // Help advertises the flag so the surface stays discoverable.
+    assert!(crate::HELP_TEXT.contains("--version"));
+    // A version string exists to report.
+    assert!(!env!("CARGO_PKG_VERSION").is_empty());
+}
+
 #[test]
 fn generated_help_mentions_every_key_binding() {
     let help = native_state::native_help_body().join("\n");

@@ -341,6 +341,7 @@ fn run_doctor(format: OutputFormat) -> Result<ExitCode, AppError> {
 const HELP_TEXT: &str = "muxpilot
 
   default                                native interactive picker
+  --version, -V                          print the muxpilot version
   --fzf                                  use fzf picker fallback
   --list [--json|--format json]          print picker rows
   doctor [--json|--format json]          check tmux/fzf and tmux context
@@ -360,6 +361,14 @@ pub async fn run(args: Vec<String>) -> Result<ExitCode, AppError> {
 
     if args.iter().any(|a| a == "-h" || a == "--help") {
         println!("{HELP_TEXT}");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    if args
+        .first()
+        .is_some_and(|a| a == "-V" || a == "--version" || a == "version")
+    {
+        println!("muxpilot {}", env!("CARGO_PKG_VERSION"));
         return Ok(ExitCode::SUCCESS);
     }
 
