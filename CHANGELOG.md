@@ -14,8 +14,10 @@ batch of fixes reported against 0.1.0.
 - **Picker modes** — footer-switched **Sessions / Agents / Layouts / Dirs**, each
   a focused view over the same workspace inventory.
 - **Three-level tree** — expand a running session into its windows, and a window
-  into its panes; multi-agent windows show each pane's own agent and model. The
-  help overlay legend is now scrollable.
+  into its panes. Windows that host a coding agent **auto-reveal that pane** —
+  showing its agent, model, and live status inline — the moment the session is
+  expanded, no second keystroke; `l` on a window still opens its remaining shell
+  panes. The help overlay legend is now scrollable.
 - **Per-pane agent model** — an agent pane shows its `kind + model`
   (e.g. `claude opus-4-8`). Resolved from the `@pane_model` hook (authoritative),
   a `--model`/`-m` arg, or the process environment (`ANTHROPIC_MODEL`, …) as an

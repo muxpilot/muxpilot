@@ -31,14 +31,17 @@ emoji-prefixed menu you drive with the keyboard:
 Pick one and MuxPilot launches it: it attaches or switches to a running session,
 `tmuxinator start`s a layout, or opens a fresh session in a directory.
 
-## Expand a session into its windows
+## Expand a session into its windows and agents
 
 Running sessions unfold into a tree. Press <code>l</code> or <kbd>Space</kbd> on
 a session to reveal its windows — each with its pane count, agent count, and last
-activity — then press <kbd>Enter</kbd> on a window to switch straight to it.
-<code>h</code> collapses the session again.
+activity. Any window that hosts a coding agent **auto-reveals that pane**, showing
+its agent, model, and live status (e.g. <code>cline haiku-4-5 ◇ input</code>)
+right there — no extra keystroke. Press <code>l</code> again on a window to expand
+its remaining shell panes, <kbd>Enter</kbd> to switch straight to a window or
+pane, and <code>h</code> to collapse.
 
-<DemoClip name="tree" caption="l / Space expands a session into its windows; Enter jumps to one; h collapses." />
+<DemoClip name="tree" caption="Expanding a session reveals its windows and auto-reveals each agent's pane — agent, model, and status inline." />
 
 ## Agent awareness
 

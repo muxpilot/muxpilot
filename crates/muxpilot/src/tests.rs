@@ -772,13 +772,18 @@ fn three_level_tree_expands_multi_pane_window_into_panes() {
     let filtered = vec![0usize];
     let mut expanded: HashSet<String> = HashSet::new();
 
-    // Expand the session -> the window becomes navigable (but its panes stay hidden).
+    // Expand the session -> the window becomes navigable and its *agent* pane is
+    // auto-revealed (agent/model/status visible) while the plain shell stays hidden.
     let sel = selectable_rows(&entries, &filtered, &expanded);
     apply_tree_key(TreeKey::EntryToggle, &sel, &entries, &filtered, &mut expanded, 0);
     let sel = selectable_rows(&entries, &filtered, &expanded);
-    assert_eq!(sel.len(), 2, "session + one window row");
+    assert_eq!(sel.len(), 3, "session + window + auto-revealed agent pane");
+    assert!(
+        matches!(sel[2], Selectable::Pane { pos: 0, win: 0, pane: 1 }),
+        "the agent pane (index 1) is the one auto-revealed"
+    );
 
-    // Expand the window (cursor on it) -> its two panes appear as leaves.
+    // Expand the window (cursor on it) -> its full pane list appears, shell included.
     let cursor = apply_tree_key(TreeKey::EntryToggle, &sel, &entries, &filtered, &mut expanded, 1);
     assert_eq!(cursor, 1, "cursor stays on the window when opening its panes");
     assert!(expanded.contains("@1"), "window keyed by its tmux id");
@@ -787,11 +792,16 @@ fn three_level_tree_expands_multi_pane_window_into_panes() {
     assert!(matches!(sel[2], Selectable::Pane { pos: 0, win: 0, pane: 0 }));
     assert!(matches!(sel[3], Selectable::Pane { pos: 0, win: 0, pane: 1 }));
 
-    // Collapsing from a pane leaf closes the window and returns to the window row.
+    // Collapsing from a pane leaf closes the full expansion, falling back to the
+    // auto-revealed agent pane, and returns the cursor to the window row.
     let cursor = apply_tree_key(TreeKey::Collapse, &sel, &entries, &filtered, &mut expanded, 3);
     assert_eq!(cursor, 1);
     assert!(!expanded.contains("@1"));
-    assert_eq!(selectable_rows(&entries, &filtered, &expanded).len(), 2);
+    assert_eq!(
+        selectable_rows(&entries, &filtered, &expanded).len(),
+        3,
+        "session + window + auto-revealed agent pane remain"
+    );
 }
 
 #[test]

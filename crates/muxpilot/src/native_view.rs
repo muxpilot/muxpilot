@@ -60,14 +60,29 @@ fn is_expanded(entry: &NativeEntry, expanded: &HashSet<String>) -> bool {
             .is_some_and(|s| expanded.contains(s))
 }
 
-/// Whether a window row is expanded into its pane leaves. Windows are keyed in
-/// the same `expanded` set by their tmux id (`@N`), which never collides with a
-/// session name in practice.
-fn is_window_expanded(
+/// The pane indices to show beneath a window row, given the expand set.
+///
+/// A one-pane window shows its agent inline on the row (no pane leaf). A
+/// multi-pane window auto-reveals just its *agent* panes so their agent/model/
+/// status is visible the moment the session is opened — no second expand; a
+/// fully expanded window (its id in `expanded`) additionally shows every plain
+/// shell pane.
+fn displayed_pane_indices(
     win: &crate::native_state::WindowRow,
     expanded: &HashSet<String>,
-) -> bool {
-    win.is_expandable() && expanded.contains(&win.id)
+) -> Vec<usize> {
+    if !win.is_expandable() {
+        return Vec::new();
+    }
+    if expanded.contains(&win.id) {
+        return (0..win.pane_rows.len()).collect();
+    }
+    win.pane_rows
+        .iter()
+        .enumerate()
+        .filter(|(_, pane)| pane.agent)
+        .map(|(idx, _)| idx)
+        .collect()
 }
 
 /// The ordered navigable rows (entries + the window children of expanded
@@ -85,10 +100,8 @@ pub(crate) fn selectable_rows(
         if is_expanded(entry, expanded) {
             for (win, window) in entry.windows.iter().enumerate() {
                 out.push(Selectable::Window { pos, win });
-                if is_window_expanded(window, expanded) {
-                    for pane in 0..window.pane_rows.len() {
-                        out.push(Selectable::Pane { pos, win, pane });
-                    }
+                for pane in displayed_pane_indices(window, expanded) {
+                    out.push(Selectable::Pane { pos, win, pane });
                 }
             }
         }
@@ -115,10 +128,8 @@ fn build_display_rows(
         if is_expanded(entry, expanded) {
             for (win, window) in entry.windows.iter().enumerate() {
                 rows.push(DisplayRow::Window { pos, win });
-                if is_window_expanded(window, expanded) {
-                    for pane in 0..window.pane_rows.len() {
-                        rows.push(DisplayRow::Pane { pos, win, pane });
-                    }
+                for pane in displayed_pane_indices(window, expanded) {
+                    rows.push(DisplayRow::Pane { pos, win, pane });
                 }
             }
         }
@@ -518,11 +529,13 @@ fn draw_window_row(
 
 /// Draw one pane leaf (third tree level): a deeper tree connector under the
 /// window, then the pane's model/state columns.
+#[allow(clippy::too_many_arguments)]
 fn draw_pane_row(
     frame_line: &mut String,
     list_width: usize,
     window: &crate::native_state::WindowRow,
     pane_idx: usize,
+    is_last: bool,
     selected: bool,
     query: &str,
     theme: &Theme,
@@ -530,7 +543,6 @@ fn draw_pane_row(
     let Some(pane) = window.pane_rows.get(pane_idx) else {
         return;
     };
-    let is_last = pane_idx + 1 == window.pane_rows.len();
     let row_style = if selected { theme.selected } else { theme.panel };
     set_frame_segment(frame_line, 0, list_width, "", row_style);
 
@@ -681,11 +693,16 @@ pub(crate) fn draw_native_picker(
             DisplayRow::Pane { pos, win, pane } => {
                 let entry = &entries[filtered[*pos]];
                 if let Some(window) = entry.windows.get(*win) {
+                    // The tree connector's `└` must mark the last *shown* pane,
+                    // which is a subset when only agent panes are auto-revealed.
+                    let is_last =
+                        displayed_pane_indices(window, expanded).last() == Some(pane);
                     draw_pane_row(
                         &mut frame[frame_row],
                         list_width,
                         window,
                         *pane,
+                        is_last,
                         selected,
                         query,
                         theme,
