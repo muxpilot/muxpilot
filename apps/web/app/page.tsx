@@ -4,6 +4,7 @@ import { SiteHeader } from "./components/SiteHeader";
 import { SiteFooter } from "./components/SiteFooter";
 import { DemoClip } from "./components/DemoClip";
 import { FeatureHighlight, type Feature } from "./components/FeatureHighlight";
+import { MUXPILOT_VERSION } from "./version";
 
 // The feature showcase. To add a feature later: drop a screenshot in
 // public/media, then append one object here — the highlight renders itself and
@@ -163,15 +164,23 @@ function HeroDemo() {
           loop
           muted
           playsInline
-          poster={poster ? "/media/picker.png" : undefined}
+          poster={poster ? `/media/picker.png?v=${MUXPILOT_VERSION}` : undefined}
         >
-          <source src="/media/picker.mp4" type="video/mp4" />
+          <source src={`/media/picker.mp4?v=${MUXPILOT_VERSION}`} type="video/mp4" />
           {gif ? (
-            <img className="demo-media" src="/media/picker.gif" alt="MuxPilot picker demo" />
+            <img
+              className="demo-media"
+              src={`/media/picker.gif?v=${MUXPILOT_VERSION}`}
+              alt="MuxPilot picker demo"
+            />
           ) : null}
         </video>
       ) : gif ? (
-        <img className="demo-media" src="/media/picker.gif" alt="MuxPilot picker demo" />
+        <img
+          className="demo-media"
+          src={`/media/picker.gif?v=${MUXPILOT_VERSION}`}
+          alt="MuxPilot picker demo"
+        />
       ) : (
         <div className="demo-poster">
           Demo video not rendered yet.
