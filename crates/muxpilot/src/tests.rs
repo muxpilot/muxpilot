@@ -1103,3 +1103,55 @@ fn labels_and_glyphs_are_centralized() {
     assert!(!crate::ui::GLYPHS.running.is_empty());
     assert!(!crate::ui::GLYPHS.tree_last.is_empty());
 }
+
+#[test]
+fn layout_row_shows_tilde_path_and_full_path_in_detail() {
+    use crate::model::{Layout, MenuModel};
+    use crate::snapshot::TmuxSnapshot;
+    let home = std::env::var("HOME").unwrap_or_default();
+    let path = format!("{home}/gits/github/acme/payments-service");
+    let model = MenuModel {
+        layouts: vec![Layout {
+            session: "payments-service".to_string(),
+            display: crate::model::tilde(&path, &home),
+            path: path.clone(),
+            running: false,
+        }],
+        ..Default::default()
+    };
+    let snap = TmuxSnapshot {
+        schema_version: 1,
+        source: "tmux",
+        backend: "tmux",
+        current_session: String::new(),
+        current_window_id: String::new(),
+        current_pane_id: String::new(),
+        sessions: vec![],
+    };
+    let entries = crate::workspace_entries::build_layout_entries(&model, &snap);
+    let e = entries.first().expect("one layout entry");
+
+    // The row shows the tilde-collapsed path, never the raw $HOME.
+    assert!(e.name_is_path, "layout name column is a path");
+    assert!(
+        e.line.contains("~/gits/github/acme/payments-service"),
+        "row shows tilde path: {}",
+        e.line
+    );
+    assert!(!e.line.contains(&home), "row must not leak raw $HOME: {}", e.line);
+
+    // The detail carries the full absolute yaml file path.
+    assert!(
+        e.detail.contains(&format!("Path: {path}/")),
+        "detail has the full yaml path: {}",
+        e.detail
+    );
+    assert!(e.detail.contains(".yml"), "detail path points at a yaml: {}", e.detail);
+
+    // At a width that can't fit the whole path, the middle is elided but the
+    // `~/` head and the name tail both survive.
+    let narrow = crate::ui::entry_columns(e, 30);
+    assert!(narrow.contains('…'), "narrow row is middle-elided: {narrow:?}");
+    assert!(narrow.trim_start().starts_with("~/"), "keeps the ~ head: {narrow:?}");
+    assert!(narrow.contains("service"), "keeps the name tail: {narrow:?}");
+}

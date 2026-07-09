@@ -583,14 +583,20 @@ pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
         snapshot.sessions.iter().map(|s| s.name.as_str()).collect();
     let mut entries: Vec<NativeEntry> = Vec::new();
 
+    let home = crate::discovery::home();
+
     let mut layouts = model.layouts.clone();
     layouts.sort_by(|a, b| a.session.cmp(&b.session));
     for l in &layouts {
         let is_running = l.running || running.contains(l.session.as_str());
+        // Row shows the repo directory (its basename is the layout name, so it
+        // survives a middle-ellipsis); the detail carries the exact yaml file.
+        let yaml = crate::discovery::resolve_local_layout_file(&l.path);
         entries.push(layout_entry(
             &l.session,
             labels().kind_layout,
             is_running,
+            Some((l.display.clone(), yaml)),
             Selection::Layout {
                 session: l.session.clone(),
                 full_path: l.path.clone(),
@@ -599,10 +605,15 @@ pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
     }
     for p in &model.projects {
         let is_running = running.contains(p.as_str());
+        let yaml = crate::discovery::tmuxinator_project_file(p);
+        let yaml_paths = std::path::Path::new(&yaml)
+            .exists()
+            .then(|| (crate::model::tilde(&yaml, &home), yaml));
         entries.push(layout_entry(
             p,
             labels().kind_project,
             is_running,
+            yaml_paths,
             Selection::Project(p.clone()),
         ));
     }
@@ -610,36 +621,57 @@ pub(crate) fn build_layout_entries(model: &MenuModel, snapshot: &TmuxSnapshot) -
     entries
 }
 
-fn layout_entry(name: &str, kind: &str, running: bool, selection: Selection) -> NativeEntry {
+/// Build one Layouts-mode row. When `yaml` is known, the row's name column shows
+/// the tilde-collapsed path to the layout's yaml (middle-elided when it must
+/// clip) and the detail pane carries the full absolute path; otherwise the row
+/// falls back to the layout/project name.
+fn layout_entry(
+    name: &str,
+    kind: &str,
+    running: bool,
+    yaml: Option<(String, String)>,
+    selection: Selection,
+) -> NativeEntry {
     let glyph = if running { GLYPHS.running } else { GLYPHS.idle };
     let status = if running {
         labels().status_running
     } else {
         labels().status_stopped
     };
-    let line = format!("{glyph} {name} · {kind} · {status} · -");
-    let detail = [
+    // Path in the (flexible) name column when we have one; else the name.
+    let name_col = yaml.as_ref().map(|(disp, _)| disp.as_str()).unwrap_or(name);
+    let line = format!("{glyph} {name_col} · {kind} · {status} · -");
+
+    let mut detail = vec![
         "Layout".to_string(),
         format!("Name: {name}"),
         format!("Kind: {kind}"),
         format!("State: {status}"),
-        format!(
-            "Default action: {}",
-            if running {
-                "switch to running session"
-            } else {
-                "start this layout"
-            }
-        ),
-    ]
-    .join("\n");
-    NativeEntry::new(
+    ];
+    if let Some((_, full)) = &yaml {
+        detail.push(format!("Path: {full}"));
+    }
+    detail.push(format!(
+        "Default action: {}",
+        if running {
+            "switch to running session"
+        } else {
+            "start this layout"
+        }
+    ));
+
+    let entry = NativeEntry::new(
         line,
-        detail,
+        detail.join("\n"),
         NativeAction::Select(selection),
         vec!["layout", "project"],
         NativeGroup::Configured,
-    )
+    );
+    if yaml.is_some() {
+        entry.with_name_as_path()
+    } else {
+        entry
+    }
 }
 
 /// Agents mode: one row per agent-pane across every session, so model and state

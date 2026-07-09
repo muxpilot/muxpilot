@@ -138,6 +138,26 @@ pub(crate) fn classic_layout(path: &str) -> String {
     format!("{path}/.tmuxinator.yml")
 }
 
+/// The on-disk yaml a repo-local layout is started from: the `.agentvibes`
+/// convergence file when present, else the classic `.tmuxinator.yml`. Matches
+/// the launcher's preference so the picker shows the file it would actually run.
+pub(crate) fn resolve_local_layout_file(dir: &str) -> String {
+    let agentvibes = agentvibes_layout(dir);
+    if std::path::Path::new(&agentvibes).exists() {
+        agentvibes
+    } else {
+        classic_layout(dir)
+    }
+}
+
+/// The global tmuxinator config file for a saved project name
+/// (`$XDG_CONFIG_HOME/tmuxinator/<name>.yml`, matching discovery).
+pub(crate) fn tmuxinator_project_file(name: &str) -> String {
+    let config_home =
+        std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home()));
+    format!("{config_home}/tmuxinator/{name}.yml")
+}
+
 /// A directory is launchable if it has a classic `.tmuxinator.yml` or our
 /// convergence `.agentvibes/tmux.yml`.
 fn check_local_config(path: &str) -> bool {

@@ -41,6 +41,19 @@ pub(crate) fn entry_sort_name(entry: &NativeEntry) -> String {
 /// the fixed glyph/marker gutter). Returns the cells, their solved widths, and
 /// alignments — header and body rows share this so they can never drift.
 fn columns_for(width: usize, name: &str, caps: &str, status: &str, last: &str) -> String {
+    columns_for_opts(width, name, caps, status, last, false)
+}
+
+/// As [`columns_for`], but when `name_is_path` the name cell is truncated with a
+/// middle ellipsis (keep the `~/` head and file tail) instead of a trailing clip.
+fn columns_for_opts(
+    width: usize,
+    name: &str,
+    caps: &str,
+    status: &str,
+    last: &str,
+    name_is_path: bool,
+) -> String {
     // Choose which meta columns fit, widest-screen-first. Every width is solved
     // through `columns::solve`, so the rendered row is always exactly `width`.
     let (caps_w, status_w, last_w) = if width >= 60 {
@@ -53,24 +66,40 @@ fn columns_for(width: usize, name: &str, caps: &str, status: &str, last: &str) -
         (0, 0, 4)
     };
 
-    let mut cells: Vec<&str> = vec![name];
     let mut cons: Vec<Constraint> = vec![Constraint::Min(6)];
     let mut aligns: Vec<Align> = vec![Align::Left];
     if caps_w > 0 {
-        cells.push(caps);
         cons.push(Constraint::Fixed(caps_w));
         aligns.push(Align::Left);
     }
     if status_w > 0 {
-        cells.push(status);
         cons.push(Constraint::Fixed(status_w));
         aligns.push(Align::Left);
     }
-    cells.push(last);
     cons.push(Constraint::Fixed(last_w));
     aligns.push(Align::Right);
 
     let widths = solve(width, 1, &cons);
+
+    // Middle-elide the path to the *solved* name width so the head and tail both
+    // survive; a pre-fit string won't be clipped again by `render_row`.
+    let name_owned;
+    let name_cell: &str = if name_is_path {
+        name_owned = super::columns::middle_ellipsis(name, widths[0]);
+        &name_owned
+    } else {
+        name
+    };
+
+    let mut cells: Vec<&str> = vec![name_cell];
+    if caps_w > 0 {
+        cells.push(caps);
+    }
+    if status_w > 0 {
+        cells.push(status);
+    }
+    cells.push(last);
+
     render_row(&cells, &widths, &aligns, 1)
 }
 
@@ -83,7 +112,7 @@ pub(crate) fn entry_header(width: usize) -> String {
 
 pub(crate) fn entry_columns(entry: &NativeEntry, width: usize) -> String {
     let (_, caps, status, last) = split_entry_columns(entry);
-    columns_for(width, entry_name(entry), caps, status, last)
+    columns_for_opts(width, entry_name(entry), caps, status, last, entry.name_is_path)
 }
 
 /// Column layout for an expanded window child row. Built through the same

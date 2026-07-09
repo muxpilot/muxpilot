@@ -50,6 +50,55 @@ pub(crate) fn truncate_ellipsis(s: &str, max: usize) -> String {
     out
 }
 
+/// Truncate to at most `max` cells by eliding the *middle*, keeping the head and
+/// tail around a single `…`. Ideal for filesystem paths, where both the `~/`
+/// root and the file name matter more than the directories in between
+/// (e.g. `~/gits/github/acme/payments-service/.agentvibes/tmux.yml` →
+/// `~/gits/…/.agentvibes/tmux.yml`). The result never exceeds `max` cells.
+pub(crate) fn middle_ellipsis(s: &str, max: usize) -> String {
+    if max == 0 {
+        return String::new();
+    }
+    if display_width(s) <= max {
+        return s.to_string();
+    }
+    if max == 1 {
+        return "…".to_string();
+    }
+    // Budget for real content once the ellipsis takes its cell. Favour the tail
+    // (file name) slightly — it carries the identity of the path.
+    let budget = max - 1;
+    let tail_budget = budget.div_ceil(2);
+    let head_budget = budget - tail_budget;
+
+    let chars: Vec<char> = s.chars().collect();
+
+    let mut head = String::new();
+    let mut head_w = 0usize;
+    for &c in &chars {
+        let w = char_width(c);
+        if head_w + w > head_budget {
+            break;
+        }
+        head.push(c);
+        head_w += w;
+    }
+
+    let mut tail_rev = String::new();
+    let mut tail_w = 0usize;
+    for &c in chars.iter().rev() {
+        let w = char_width(c);
+        if tail_w + w > tail_budget {
+            break;
+        }
+        tail_rev.push(c);
+        tail_w += w;
+    }
+    let tail: String = tail_rev.chars().rev().collect();
+
+    format!("{head}…{tail}")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Align {
     Left,
@@ -196,6 +245,19 @@ mod tests {
         assert_eq!(t, "hell…");
         assert_eq!(display_width(&t), 5);
         assert_eq!(truncate_ellipsis("anything", 0), "");
+    }
+
+    #[test]
+    fn middle_ellipsis_keeps_head_and_tail() {
+        assert_eq!(middle_ellipsis("short", 10), "short");
+        let p = "~/gits/github/acme/payments-service/.agentvibes/tmux.yml";
+        let t = middle_ellipsis(p, 28);
+        assert!(display_width(&t) <= 28, "width {}", display_width(&t));
+        assert!(t.contains('…'));
+        assert!(t.starts_with("~/"), "keeps the ~ head: {t}");
+        assert!(t.ends_with("tmux.yml"), "keeps the file tail: {t}");
+        assert_eq!(middle_ellipsis(p, 1), "…");
+        assert_eq!(middle_ellipsis("abc", 0), "");
     }
 
     #[test]

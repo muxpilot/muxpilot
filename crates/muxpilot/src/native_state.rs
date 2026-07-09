@@ -114,6 +114,10 @@ pub(crate) struct NativeEntry {
     pub(crate) session: Option<String>,
     /// Child windows, shown when the row is expanded. Empty for non-sessions.
     pub(crate) windows: Vec<WindowRow>,
+    /// When true, the name column holds a filesystem path — render it with a
+    /// middle ellipsis (keep the `~/` head and the file tail) instead of the
+    /// default trailing clip, so the important ends stay visible.
+    pub(crate) name_is_path: bool,
 }
 
 impl NativeEntry {
@@ -134,6 +138,7 @@ impl NativeEntry {
             group,
             session: None,
             windows: Vec::new(),
+            name_is_path: false,
         }
     }
 
@@ -141,6 +146,12 @@ impl NativeEntry {
     pub(crate) fn with_windows(mut self, session: String, windows: Vec<WindowRow>) -> Self {
         self.session = Some(session);
         self.windows = windows;
+        self
+    }
+
+    /// Mark the name column as a filesystem path (middle-ellipsis on overflow).
+    pub(crate) fn with_name_as_path(mut self) -> Self {
+        self.name_is_path = true;
         self
     }
 
