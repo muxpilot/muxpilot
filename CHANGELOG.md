@@ -15,6 +15,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are — the current session in Sessions, and the agent on your current pane in
   Agents.
 
+### Fixed
+
+- **Selecting an agent switches to its pane, not just the session.** The switch
+  now sets the target window + pane active *before* moving the client to the
+  session, so it lands exactly on the agent's pane. (Previously it landed on the
+  session's last-used window.)
+- **Agent status is read more accurately.** The screen classifier now looks past
+  the input box + status bar to the live status line (so a working agent whose
+  `✽ Sketching…` indicator sits above the prompt is no longer read as idle), and
+  the approval-gate detector keys on the actual numbered/y-n prompt instead of
+  matching the word "approval" anywhere in the agent's output.
+
 ## [0.1.1] - 2026-07-09
 
 First feature release after the initial launch — a much richer picker plus a

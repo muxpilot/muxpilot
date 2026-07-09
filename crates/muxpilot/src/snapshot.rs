@@ -554,18 +554,20 @@ fn infer_agent(
 }
 
 /// Approval-style prompts — the agent is blocked on a permission/confirm gate.
+///
+/// These must be markers of an *interactive prompt*, not words that can occur in
+/// prose the agent prints (an agent describing an "approval gate" feature is not
+/// waiting on you). So key on the numbered-choice menu (`❯ 1. Yes`) and explicit
+/// y/n gates, not bare words like "approve" / "proceed?".
 const APPROVE_NEEDLES: &[&str] = &[
-    "continue?",
-    "do you want to",
-    "proceed?",
-    "approve",
-    "approval",
-    "press enter",
-    "y/n",
-    "yes/no",
-    "[y/n]",
     "❯ 1.",
+    "❯ 1 ",
+    "> 1. yes",
     "1. yes",
+    "(y/n)",
+    "[y/n]",
+    "(yes/no)",
+    "[yes/no]",
 ];
 /// The agent is actively producing output / running a tool.
 const WORKING_NEEDLES: &[&str] = &[
@@ -586,8 +588,27 @@ const WAIT_INPUT_NEEDLES: &[&str] = &["esc to cancel", "waiting for your"];
 /// Braille spinner frames the TUIs animate while busy.
 const SPINNER_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷";
 
+/// Leading glyphs Claude Code / Codex cycle at the start of their live status
+/// line while producing output (e.g. `✽ Sketching…`). These are *not* proof of
+/// working on their own — the same glyph leads the finished line (`✻ Churned
+/// for 2m 33s`) — so [`is_working_line`] also requires the in-progress ellipsis.
+const AGENT_ANIM_GLYPHS: &str = "✻✽✢✳✶✷✸✹✺∗✱✲✴✵✦✧◐◑◒◓";
+
 fn contains_spinner(text: &str) -> bool {
     text.chars().any(|c| SPINNER_CHARS.contains(c))
+}
+
+/// Whether a line is an agent's in-progress status line — a spinner/anim glyph
+/// leading a gerund that trails off in an ellipsis (`✽ Sketching… (14m 0s · ↓
+/// 46.4k tokens)`). Keying on the ellipsis distinguishes it from the finished
+/// line (`✻ Churned for 2m 33s`), which shares the glyph but has no `…`.
+fn is_working_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let leads_anim = trimmed
+        .chars()
+        .next()
+        .is_some_and(|c| AGENT_ANIM_GLYPHS.contains(c) || SPINNER_CHARS.contains(c));
+    leads_anim && (line.contains('…') || line.contains("..."))
 }
 
 /// Whether a line is an empty ready-prompt (`>` / `❯`) once box-drawing and
@@ -606,21 +627,29 @@ fn is_ready_prompt(line: &str) -> bool {
 /// used only for hook-less agents — but it is what lets MuxPilot show
 /// working/idle where hook-only competitors show nothing.
 fn classify_capture(text: &str) -> (PaneAgentStatus, u8, &'static str) {
+    // Inspect enough of the tail to include the live status line, which agent TUIs
+    // park *above* the input box + status bar (Claude spends ~5-6 rows on those
+    // alone) — a 6-line window missed the "Sketching…" indicator and read the pane
+    // as idle. Cap at ~10 so deep scrollback prose can't false-match a prompt.
     let tail: String = text
         .lines()
         .rev()
         .filter(|l| !l.trim().is_empty())
-        .take(6)
+        .take(10)
         .collect::<Vec<_>>()
         .join("\n");
     let lower = tail.to_ascii_lowercase();
+    let working_line = tail.lines().any(is_working_line);
 
     // Ordered by urgency: an approval gate outranks a busy spinner (an agent can
     // render both while it waits), which outranks a plain input prompt, which
     // outranks an empty idle prompt.
     if APPROVE_NEEDLES.iter().any(|n| lower.contains(n)) {
         (PaneAgentStatus::WaitingApprove, 80, "approval prompt on screen")
-    } else if WORKING_NEEDLES.iter().any(|n| lower.contains(n)) || contains_spinner(&tail) {
+    } else if working_line
+        || WORKING_NEEDLES.iter().any(|n| lower.contains(n))
+        || contains_spinner(&tail)
+    {
         (PaneAgentStatus::Working, 70, "")
     } else if WAIT_INPUT_NEEDLES.iter().any(|n| lower.contains(n)) {
         (PaneAgentStatus::WaitingInput, 65, "input prompt on screen")
@@ -992,6 +1021,52 @@ mod pane_status_tests {
         assert_eq!(classify_capture("done.\n╭─────╮\n│ >   │\n╰─────╯").0, Idle);
         // Indeterminate scrollback (note: `>` inside a command is not a prompt).
         assert_eq!(classify_capture("ran: cat a > b.txt\nplain text").0, Unknown);
+    }
+
+    #[test]
+    fn classify_capture_reads_real_claude_layout() {
+        use PaneAgentStatus::*;
+        // Claude working: the "Sketching…" status line sits ABOVE the input box
+        // and status bar — 6 lines from the bottom — so the classifier must look
+        // past them. Previously this whole screen read as Idle.
+        let working = "\
+… +17 lines (ctrl+o to expand)
+✽ Sketching… (14m 0s · ↓ 46.4k tokens)
+  Tip: Use /btw to ask a quick side question
+────────────────────────────
+❯
+────────────────────────────
+  Op1M  780k left  87%  3h58m
+  -- INSERT -- bypass permissions on";
+        assert_eq!(classify_capture(working).0, Working, "Sketching… is working");
+
+        // Claude finished: same glyph family, but the line reads "Churned for" —
+        // no ellipsis — with an empty prompt below. That is idle, not working.
+        let done = "\
+  Only the genuinely-unmerged branch was preserved.
+✻ Churned for 2m 33s
+────────────────────────────
+❯
+────────────────────────────
+  Op1M  610k left  92%  17m
+  -- INSERT -- bypass permissions on";
+        assert_eq!(classify_capture(done).0, Idle, "Churned for = done/idle");
+
+        // The word "approval" in the agent's *prose* must not read as a permission
+        // gate — only an actual numbered/y-n prompt does.
+        let prose = "\
+  Tap a button on the \"Approval gate\" or \"Poll\" message and the webhook answers.
+  Want me to wire the callback routing so buttons do per-action things?
+✻ Churned for 18m 32s
+────────────────────────────
+❯ yes, wire the callback routing
+────────────────────────────
+  Op1M  760k left  86%";
+        assert_ne!(
+            classify_capture(prose).0,
+            WaitingApprove,
+            "prose mentioning approval is not a gate"
+        );
     }
 
     #[test]

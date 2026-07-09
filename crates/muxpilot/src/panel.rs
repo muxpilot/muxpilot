@@ -147,37 +147,25 @@ fn panel_switch(target: &PanelTarget) {
     }
 }
 
-pub(crate) fn switch_tmux_window(session: &str, window_id: &str) -> Result<(), AppError> {
+/// Bring the calling client to `session`. Targets the specific client tty when
+/// we can resolve it (so it works from inside a `display-popup`), else the
+/// ambient client.
+fn switch_client_to(session: &str, operation: &str) -> Result<(), AppError> {
     let client = tmux(&["display-message", "-p", "#{client_tty}"]);
     if client.is_empty() {
-        tmux_checked(
-            &[
-                "switch-client",
-                "-t",
-                session,
-                ";",
-                "select-window",
-                "-t",
-                window_id,
-            ],
-            "muxpilot.switch-window",
-        )
+        tmux_checked(&["switch-client", "-t", session], operation)
     } else {
-        tmux_checked(
-            &[
-                "switch-client",
-                "-c",
-                &client,
-                "-t",
-                session,
-                ";",
-                "select-window",
-                "-t",
-                window_id,
-            ],
-            "muxpilot.switch-window",
-        )
+        tmux_checked(&["switch-client", "-c", &client, "-t", session], operation)
     }
+}
+
+pub(crate) fn switch_tmux_window(session: &str, window_id: &str) -> Result<(), AppError> {
+    // Make the window active in its session *first*, then bring the client over.
+    // `switch-client` adopts whatever window is active in the target session, so
+    // doing it last lands the client on this window; doing it first (the old
+    // behaviour) landed on the session's previously-active window.
+    tmux_checked(&["select-window", "-t", window_id], "muxpilot.switch-window")?;
+    switch_client_to(session, "muxpilot.switch-window")
 }
 
 pub(crate) fn switch_tmux_pane(
@@ -185,44 +173,12 @@ pub(crate) fn switch_tmux_pane(
     window_id: &str,
     pane_id: &str,
 ) -> Result<(), AppError> {
-    let client = tmux(&["display-message", "-p", "#{client_tty}"]);
-    if client.is_empty() {
-        tmux_checked(
-            &[
-                "switch-client",
-                "-t",
-                session,
-                ";",
-                "select-window",
-                "-t",
-                window_id,
-                ";",
-                "select-pane",
-                "-t",
-                pane_id,
-            ],
-            "muxpilot.switch-pane",
-        )
-    } else {
-        tmux_checked(
-            &[
-                "switch-client",
-                "-c",
-                &client,
-                "-t",
-                session,
-                ";",
-                "select-window",
-                "-t",
-                window_id,
-                ";",
-                "select-pane",
-                "-t",
-                pane_id,
-            ],
-            "muxpilot.switch-pane",
-        )
-    }
+    // Set the target window and pane active in their session first, then switch
+    // the client to the session — it adopts the now-active window/pane, landing
+    // exactly on this agent's pane rather than the session's last-used window.
+    tmux_checked(&["select-window", "-t", window_id], "muxpilot.switch-pane")?;
+    tmux_checked(&["select-pane", "-t", pane_id], "muxpilot.switch-pane")?;
+    switch_client_to(session, "muxpilot.switch-pane")
 }
 
 fn sidebar_width() -> String {
