@@ -1,0 +1,231 @@
+# MuxPilot default state-detection profiles.
+#
+# This file is compiled into the binary via `include_str!` (see `profiles.rs`) —
+# there is NO external default file to ship, install, or lose. A fresh install
+# with zero config classifies exactly as the old hardcoded Rust tables did; these
+# rules are a byte-identical transcription of them.
+#
+# Override any profile by dropping a `~/.config/muxpilot/profiles.toml` with a
+# `[[profile]]` of the same `id` (replace-by-id), or point `MUXPILOT_PROFILES` at
+# an alternate file. The `PaneAgentStatus` enum, its severity order, and the
+# confidence ladder live in Rust and cannot be changed from data — a rule's
+# `status` must resolve to one of the fixed variants or the profile is rejected
+# at load (logged, not fatal). See the agent-state-dsl research note for the
+# design rationale.
+
+[engine.limits]
+max_rules_per_profile = 100
+max_profiles = 500
+max_tail_lines = 120
+
+# Named spinner / animation glyph sets, referenced by rules below. `braille` is
+# the busy spinner the agent TUIs cycle; `anim` is the star/moon glyph an agent
+# parks at the head of its live status line. `screen_working_line` keys off the
+# union of both (a glyph leading a gerund that trails off in an ellipsis).
+[spinner_sets]
+braille = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷"
+anim = "✻✽✢✳✶✷✸✹✺∗✱✲✴✵✦✧◐◑◒◓"
+
+# ---------------------------------------------------------------------------
+# Coding agents. One screen profile covers every agent kind (claude, codex,
+# cline, …): the on-screen patterns are the same regardless of which agent drew
+# them, so the specific kind is resolved separately (process/pane-command) and
+# this profile only reads state + model off the screen. Rules reproduce the old
+# APPROVE_NEEDLES / WORKING_NEEDLES / WAIT_INPUT_NEEDLES / spinner / ready-prompt
+# tables; `unknown_confidence = 50` matches the old "nothing matched" fallback.
+# ---------------------------------------------------------------------------
+[[profile]]
+id = "agent"
+kind = "agent"
+role = "agent"        # this profile classifies already-identified agent panes
+tail_lines = 10
+unknown_confidence = 50
+
+# An approval gate outranks everything (a busy agent can render both) — keyed on
+# the actual numbered / y-n prompt, never the bare word "approve" in prose.
+[[profile.rule]]
+status = "WaitingApprove"
+confidence = 80
+evidence = "approval prompt on screen"
+when.screen_any_substring_i = ["❯ 1.", "❯ 1 ", "> 1. yes", "1. yes", "(y/n)", "[y/n]", "(yes/no)", "[yes/no]"]
+
+# Actively producing: a live status line (glyph + gerund + …), an interrupt hint,
+# or a braille spinner anywhere in the tail.
+[[profile.rule]]
+status = "Working"
+confidence = 70
+when.any = [
+  { screen_working_line = true },
+  { screen_spinner = "braille" },
+  { screen_any_substring_i = [
+      "esc to interrupt", "esc to stop", "ctrl+c to interrupt",
+      "thinking…", "thinking...", "working…", "working...",
+      "running…", "running...", "generating…", "generating...",
+  ] },
+]
+
+[[profile.rule]]
+status = "WaitingInput"
+confidence = 65
+evidence = "input prompt on screen"
+when.screen_any_substring_i = ["esc to cancel", "waiting for your"]
+
+# An empty ready-prompt box as the tail == idle at a prompt.
+[[profile.rule]]
+status = "Idle"
+confidence = 55
+when.screen_ready_prompt = true
+
+# Model badge scraped off the on-screen status line — the lowest-confidence model
+# source, below hook/argv/env, and marked with a `~` so it reads as a guess. The
+# badge is abbreviated/version-less so it yields a family (`~opus`), not a slug.
+[[profile.model]]
+from = "screen"
+confidence = 30
+badges = [
+  ["op1m", "~opus"], ["opus", "~opus"], ["sonnet", "~sonnet"], ["haiku", "~haiku"],
+  ["gpt-5", "~gpt-5"], ["gpt5", "~gpt-5"], ["gpt-4", "~gpt-4"], ["gemini", "~gemini"],
+]
+
+# ---------------------------------------------------------------------------
+# Beyond agents: the same primitives classify any long-running pane. These fire
+# on the pane's foreground command (or a tell-tale screen token) and surface a
+# state — MuxPilot auto-shows only the "needs you" states (approval / input /
+# error), so an idle or merely-working build never clutters the list.
+# ---------------------------------------------------------------------------
+
+[[profile]]
+id = "terraform"
+kind = "deploy"
+priority = 100
+tail_lines = 12
+identity.commands = ["terraform", "tofu"]
+identity.screen_tokens = ["terraform will perform", "terraform used the selected providers"]
+
+[[profile.rule]]
+status = "WaitingApprove"
+confidence = 75
+evidence = "terraform is waiting for approval"
+when.screen_any_substring_i = ["do you want to perform these actions?", "enter a value:", "only 'yes' will be accepted"]
+
+[[profile.rule]]
+status = "Error"
+confidence = 65
+evidence = "terraform reported an error"
+when.screen_any_substring_i = ["\n│ error:", "error: ", "error acquiring the state lock"]
+
+[[profile.rule]]
+status = "Working"
+confidence = 60
+when.screen_any_substring_i = ["still creating...", "still modifying...", "still destroying...", "refreshing state..."]
+
+[[profile.rule]]
+status = "Idle"
+confidence = 55
+when.screen_any_substring_i = ["apply complete!", "destroy complete!", "no changes. your infrastructure matches"]
+
+[[profile]]
+id = "cargo-build"
+kind = "build"
+priority = 100
+tail_lines = 12
+identity.commands = ["cargo", "make", "ninja", "rustc", "go", "gcc", "clang"]
+
+[[profile.rule]]
+status = "Error"
+confidence = 65
+evidence = "compiler reported an error"
+when.screen_any_substring_i = ["error[e", "error: could not compile", "error: aborting", "make: *** ", "fatal error:"]
+
+[[profile.rule]]
+status = "Working"
+confidence = 60
+when.screen_any_substring_i = ["compiling ", "   building [", " checking ", "linking "]
+
+[[profile.rule]]
+status = "Idle"
+confidence = 55
+when.screen_any_substring_i = ["finished `", "finished dev", "finished release", "build succeeded"]
+
+[[profile]]
+id = "pytest"
+kind = "test"
+priority = 100
+tail_lines = 14
+identity.commands = ["pytest", "py.test"]
+identity.screen_tokens = ["test session starts", "collected ", "= short test summary"]
+
+[[profile.rule]]
+status = "WaitingInput"
+confidence = 60
+evidence = "debugger prompt on screen"
+when.screen_any_substring_i = ["(pdb)", "ipdb>", "(pdb++)"]
+
+[[profile.rule]]
+status = "Error"
+confidence = 65
+evidence = "test failures on screen"
+when.screen_any_substring_i = ["= failures =", "= errors =", "= error ="]
+
+[[profile.rule]]
+status = "Working"
+confidence = 60
+when.screen_any_substring_i = ["test session starts", "collected "]
+
+[[profile.rule]]
+status = "Idle"
+confidence = 55
+when.screen_any_substring_i = [" passed", " no tests ran", " deselected", "= passed ="]
+
+[[profile]]
+id = "docker-build"
+kind = "build"
+priority = 100
+tail_lines = 12
+identity.commands = ["docker", "podman", "buildx", "nerdctl"]
+identity.screen_tokens = ["=> [internal]", "=> exporting to image"]
+
+[[profile.rule]]
+status = "Error"
+confidence = 65
+evidence = "image build failed"
+when.screen_any_substring_i = ["failed to solve", "error: failed to", "returned a non-zero code"]
+
+[[profile.rule]]
+status = "Working"
+confidence = 60
+when.screen_any_substring_i = ["=> [", "=> exporting", "=> transferring"]
+
+[[profile.rule]]
+status = "Idle"
+confidence = 55
+when.screen_any_substring_i = ["writing image", "successfully built", "successfully tagged", "naming to "]
+
+# Lowest-priority catch-all for a plain shell: the profile that makes *any* pane
+# classifiable. Only its "needs you" prompts (password / host-key / debugger) are
+# auto-shown; it never labels an ordinary idle shell as an agent.
+[[profile]]
+id = "generic-shell"
+kind = "shell"
+fallback = true
+priority = 0
+tail_lines = 10
+identity.commands = ["bash", "zsh", "sh", "fish", "dash", "ksh"]
+
+[[profile.rule]]
+status = "WaitingInput"
+confidence = 50
+evidence = "password prompt on screen"
+when.screen_any_substring_i = ["password for ", "password:", "passphrase for", "passphrase:"]
+
+[[profile.rule]]
+status = "WaitingApprove"
+confidence = 50
+evidence = "host-key confirmation on screen"
+when.screen_any_substring_i = ["the authenticity of host", "are you sure you want to continue connecting"]
+
+[[profile.rule]]
+status = "WaitingInput"
+confidence = 50
+evidence = "debugger prompt on screen"
+when.screen_any_substring_i = ["(pdb)", "ipdb>"]

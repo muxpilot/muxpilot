@@ -475,43 +475,15 @@ fn read_proc_model_env(_pid: u32) -> Option<String> {
     None
 }
 
-/// Model badges agent TUIs paint in their on-screen status line, mapped to a
-/// canonical family slug. Ordered most-specific first. Screen scraping is the
-/// lowest-confidence model source (below hook/argv/env): the badge is abbreviated
-/// and version-less (`Op1M`, `Sonnet`), so it yields a *family* (`opus`), not an
-/// exact slug like `claude-opus-4-8`, and it is fragile to theme/locale/TUI
-/// changes — which is exactly why it sits last and can never override a real
-/// value from a higher source.
-const MODEL_BADGES: &[(&str, &str)] = &[
-    ("op1m", "opus"), // Claude's compact "Op1M" badge = Opus, 1M-context window
-    ("opus", "opus"),
-    ("sonnet", "sonnet"),
-    ("haiku", "haiku"),
-    ("gpt-5", "gpt-5"),
-    ("gpt5", "gpt-5"),
-    ("gpt-4", "gpt-4"),
-    ("gemini", "gemini"),
-];
-
 /// Guess an agent's model family from its on-screen status-line badge — the
 /// last-resort fallback for when the `@pane_model` hook, `--model` arg, and model
 /// env var are all absent, yet the agent renders its model right on screen (e.g.
 /// Claude's `🤖 Op1M  780k left  87%` footer). Returns a `~`-prefixed family slug
-/// (`~opus`) so the value reads as the low-confidence guess it is, not a reported
-/// truth. Only the tail is scanned, so deep scrollback prose can't false-match.
+/// (`~opus`) so the value reads as the low-confidence guess it is. The badge table
+/// lives in data — the `agent` profile's `[[model]] from = "screen"` — so it is
+/// tuned without a recompile; this delegates to that engine.
 fn model_from_screen(text: &str) -> Option<String> {
-    let tail: String = text
-        .lines()
-        .rev()
-        .filter(|l| !l.trim().is_empty())
-        .take(12)
-        .collect::<Vec<_>>()
-        .join("\n")
-        .to_ascii_lowercase();
-    MODEL_BADGES
-        .iter()
-        .find(|(needle, _)| tail.contains(needle))
-        .map(|(_, family)| format!("~{family}"))
+    crate::profiles::registry().model_from_screen(text)
 }
 
 /// Resolve an agent's model, in strict priority order: the `@pane_model` hook
@@ -598,111 +570,25 @@ fn infer_agent(
     })
 }
 
-/// Approval-style prompts — the agent is blocked on a permission/confirm gate.
-///
-/// These must be markers of an *interactive prompt*, not words that can occur in
-/// prose the agent prints (an agent describing an "approval gate" feature is not
-/// waiting on you). So key on the numbered-choice menu (`❯ 1. Yes`) and explicit
-/// y/n gates, not bare words like "approve" / "proceed?".
-const APPROVE_NEEDLES: &[&str] = &[
-    "❯ 1.",
-    "❯ 1 ",
-    "> 1. yes",
-    "1. yes",
-    "(y/n)",
-    "[y/n]",
-    "(yes/no)",
-    "[yes/no]",
-];
-/// The agent is actively producing output / running a tool.
-const WORKING_NEEDLES: &[&str] = &[
-    "esc to interrupt",
-    "esc to stop",
-    "ctrl+c to interrupt",
-    "thinking…",
-    "thinking...",
-    "working…",
-    "working...",
-    "running…",
-    "running...",
-    "generating…",
-    "generating...",
-];
-/// The agent asked a free-form question and is waiting on a typed answer.
-const WAIT_INPUT_NEEDLES: &[&str] = &["esc to cancel", "waiting for your"];
-/// Braille spinner frames the TUIs animate while busy.
-const SPINNER_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷";
-
-/// Leading glyphs Claude Code / Codex cycle at the start of their live status
-/// line while producing output (e.g. `✽ Sketching…`). These are *not* proof of
-/// working on their own — the same glyph leads the finished line (`✻ Churned
-/// for 2m 33s`) — so [`is_working_line`] also requires the in-progress ellipsis.
-const AGENT_ANIM_GLYPHS: &str = "✻✽✢✳✶✷✸✹✺∗✱✲✴✵✦✧◐◑◒◓";
-
-fn contains_spinner(text: &str) -> bool {
-    text.chars().any(|c| SPINNER_CHARS.contains(c))
-}
-
-/// Whether a line is an agent's in-progress status line — a spinner/anim glyph
-/// leading a gerund that trails off in an ellipsis (`✽ Sketching… (14m 0s · ↓
-/// 46.4k tokens)`). Keying on the ellipsis distinguishes it from the finished
-/// line (`✻ Churned for 2m 33s`), which shares the glyph but has no `…`.
-fn is_working_line(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    let leads_anim = trimmed
-        .chars()
-        .next()
-        .is_some_and(|c| AGENT_ANIM_GLYPHS.contains(c) || SPINNER_CHARS.contains(c));
-    leads_anim && (line.contains('…') || line.contains("..."))
-}
-
-/// Whether a line is an empty ready-prompt (`>` / `❯`) once box-drawing and
-/// whitespace are stripped — the shape an idle agent's input box takes.
-fn is_ready_prompt(line: &str) -> bool {
-    let core: String = line
-        .chars()
-        .filter(|c| !c.is_whitespace() && !"│|╭╮╰╯─╌┆┊>❯".contains(*c))
-        .collect();
-    core.is_empty() && (line.contains('>') || line.contains('❯'))
-}
+// The agent screen-pattern tables (approval / working / wait-input needles, the
+// spinner and animation glyph sets, and the working-line / ready-prompt shape
+// tests) that used to live here are now data — the `agent` profile in
+// `default-profiles.toml`, evaluated by `crate::profiles`. Adding or tuning a
+// pattern no longer means editing Rust.
 
 /// Classify a captured pane's screen into an agent status. Pure over the text
 /// so it is unit-testable; only the tail (the live status area) is inspected.
 /// Returns `(status, confidence, wait_reason)`. This is the fallback tier —
 /// used only for hook-less agents — but it is what lets MuxPilot show
 /// working/idle where hook-only competitors show nothing.
-fn classify_capture(text: &str) -> (PaneAgentStatus, u8, &'static str) {
-    // Inspect enough of the tail to include the live status line, which agent TUIs
-    // park *above* the input box + status bar (Claude spends ~5-6 rows on those
-    // alone) — a 6-line window missed the "Sketching…" indicator and read the pane
-    // as idle. Cap at ~10 so deep scrollback prose can't false-match a prompt.
-    let tail: String = text
-        .lines()
-        .rev()
-        .filter(|l| !l.trim().is_empty())
-        .take(10)
-        .collect::<Vec<_>>()
-        .join("\n");
-    let lower = tail.to_ascii_lowercase();
-    let working_line = tail.lines().any(is_working_line);
-
-    // Ordered by urgency: an approval gate outranks a busy spinner (an agent can
-    // render both while it waits), which outranks a plain input prompt, which
-    // outranks an empty idle prompt.
-    if APPROVE_NEEDLES.iter().any(|n| lower.contains(n)) {
-        (PaneAgentStatus::WaitingApprove, 80, "approval prompt on screen")
-    } else if working_line
-        || WORKING_NEEDLES.iter().any(|n| lower.contains(n))
-        || contains_spinner(&tail)
-    {
-        (PaneAgentStatus::Working, 70, "")
-    } else if WAIT_INPUT_NEEDLES.iter().any(|n| lower.contains(n)) {
-        (PaneAgentStatus::WaitingInput, 65, "input prompt on screen")
-    } else if tail.lines().any(is_ready_prompt) {
-        (PaneAgentStatus::Idle, 55, "")
-    } else {
-        (PaneAgentStatus::Unknown, 50, "")
-    }
+///
+/// The pattern tables that drive this now live in data — the `agent` profile in
+/// `default-profiles.toml`, evaluated by the [`crate::profiles`] engine — so
+/// tuning a screen needle or adding a program's patterns no longer means a
+/// recompile. This wrapper preserves the old signature and behavior exactly.
+fn classify_capture(text: &str) -> (PaneAgentStatus, u8, String) {
+    let c = crate::profiles::registry().classify_agent(text, crate::profiles::OutputSignals::default());
+    (c.status, c.confidence, c.evidence)
 }
 
 // --- T3: content-based pane activity ---
@@ -786,6 +672,10 @@ fn infer_from_capture(
     if text.is_empty() {
         return None;
     }
+    let (is_active, record) = resolve_activity(prev.get(pane_id).copied(), hash_content(&text), now);
+    current.insert(pane_id.to_string(), record);
+    let last_change = Some(record.last_change);
+
     let lower = text.to_ascii_lowercase();
     let kind = pane
         .agent
@@ -793,13 +683,15 @@ fn infer_from_capture(
         .map(|a| a.kind.clone())
         .or_else(|| detect_agent_name(&lower).map(ToOwned::to_owned));
     let Some(kind) = kind else {
+        // No coding agent here — but the pane may still be a build / test /
+        // deploy / shell process blocked on you (a Terraform apply prompt, an
+        // ssh password, a compiler error). Surface only the "needs you" states,
+        // so an idle or merely-working process never clutters the list.
+        maybe_attach_process_state(pane, &text, is_active, last_change);
         return Some(text);
     };
 
     let (status, conf, wait_reason) = classify_capture(&text);
-    let (is_active, record) = resolve_activity(prev.get(pane_id).copied(), hash_content(&text), now);
-    current.insert(pane_id.to_string(), record);
-    let last_change = Some(record.last_change);
 
     match &mut pane.agent {
         Some(agent) => {
@@ -812,7 +704,7 @@ fn infer_from_capture(
             {
                 agent.status = status;
                 agent.attention = status.needs_attention();
-                agent.wait_reason = wait_reason.to_string();
+                agent.wait_reason = wait_reason.clone();
                 agent.confidence = agent.confidence.max(conf);
             }
             agent.is_active = is_active;
@@ -826,7 +718,7 @@ fn infer_from_capture(
                 source: AgentStateSource::CapturePane,
                 confidence: conf,
                 attention: status.needs_attention(),
-                wait_reason: wait_reason.to_string(),
+                wait_reason,
                 model: None,
                 evidence: vec!["capture-pane".to_string()],
                 is_active,
@@ -835,6 +727,40 @@ fn infer_from_capture(
         }
     }
     Some(text)
+}
+
+/// Surface a non-agent pane's process state when it needs the user. Runs the
+/// beyond-agents profiles (build / test / deploy / generic-shell) over the
+/// captured screen; attaches a state only for `needs_attention()` statuses
+/// (approval / input / error), so a plain idle or busy process stays invisible
+/// and the picker's list keeps its focus on things that want you.
+fn maybe_attach_process_state(
+    pane: &mut TmuxPane,
+    text: &str,
+    is_active: bool,
+    last_change: Option<u64>,
+) {
+    let signals = crate::profiles::OutputSignals::default();
+    let Some((kind, class)) =
+        crate::profiles::registry().classify_process(&pane.current_command, text, signals)
+    else {
+        return;
+    };
+    if !class.status.needs_attention() {
+        return;
+    }
+    pane.agent = Some(AgentState {
+        kind,
+        status: class.status,
+        source: AgentStateSource::CapturePane,
+        confidence: class.confidence,
+        attention: true,
+        wait_reason: class.evidence,
+        model: None,
+        evidence: vec!["capture-pane".to_string(), "process-state".to_string()],
+        is_active,
+        last_change,
+    });
 }
 
 pub fn tmux_snapshot() -> TmuxSnapshot {

@@ -50,6 +50,8 @@ mod native_view;
 
 mod picker_state;
 
+mod profiles;
+
 mod panel;
 use panel::{run_watch_panel, switch_tmux_pane, switch_tmux_window, toggle_panel};
 

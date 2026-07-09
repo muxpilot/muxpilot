@@ -8,6 +8,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Data-driven state-detection profiles (DSL).** The screen-pattern tables that
+  decide a pane's state — approval / working / input needles, spinner and
+  animation glyph sets, the ready-prompt shape, and the model-badge table — now
+  live in TOML **profiles** instead of hardcoded Rust. Defaults are compiled into
+  the binary (zero-config installs behave identically); drop a
+  `~/.config/muxpilot/profiles.toml` to override any profile by `id`, or point
+  `MUXPILOT_PROFILES` at another file. A malformed profile is logged and skipped,
+  never fatal, and a rule's `status` must resolve to a real state — data can't
+  invent one. Tuning a detection pattern no longer means a recompile.
+- **Beyond agents: build / test / deploy / shell states.** The same engine now
+  recognizes non-agent panes blocked on you — a Terraform `Enter a value:`
+  prompt, an ssh password / host-key confirmation, a `pytest` debugger, a
+  compiler error — and surfaces them alongside agents. Only "needs you" states
+  are shown, so an idle or merely-busy process never clutters the list.
 - **Model guessed from the on-screen badge.** When an agent reports no model
   through the `@pane_model` hook, a `--model` arg, or a model env var, MuxPilot
   now scrapes the model family off the agent's on-screen status line (e.g.
