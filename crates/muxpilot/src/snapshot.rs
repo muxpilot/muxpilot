@@ -475,19 +475,64 @@ fn read_proc_model_env(_pid: u32) -> Option<String> {
     None
 }
 
-/// Resolve an agent's model. The `@pane_model` hook option is authoritative (the
-/// agent reports its own model); otherwise fall back to the process args, then to
-/// a model pinned in the process environment.
+/// Model badges agent TUIs paint in their on-screen status line, mapped to a
+/// canonical family slug. Ordered most-specific first. Screen scraping is the
+/// lowest-confidence model source (below hook/argv/env): the badge is abbreviated
+/// and version-less (`Op1M`, `Sonnet`), so it yields a *family* (`opus`), not an
+/// exact slug like `claude-opus-4-8`, and it is fragile to theme/locale/TUI
+/// changes — which is exactly why it sits last and can never override a real
+/// value from a higher source.
+const MODEL_BADGES: &[(&str, &str)] = &[
+    ("op1m", "opus"), // Claude's compact "Op1M" badge = Opus, 1M-context window
+    ("opus", "opus"),
+    ("sonnet", "sonnet"),
+    ("haiku", "haiku"),
+    ("gpt-5", "gpt-5"),
+    ("gpt5", "gpt-5"),
+    ("gpt-4", "gpt-4"),
+    ("gemini", "gemini"),
+];
+
+/// Guess an agent's model family from its on-screen status-line badge — the
+/// last-resort fallback for when the `@pane_model` hook, `--model` arg, and model
+/// env var are all absent, yet the agent renders its model right on screen (e.g.
+/// Claude's `🤖 Op1M  780k left  87%` footer). Returns a `~`-prefixed family slug
+/// (`~opus`) so the value reads as the low-confidence guess it is, not a reported
+/// truth. Only the tail is scanned, so deep scrollback prose can't false-match.
+fn model_from_screen(text: &str) -> Option<String> {
+    let tail: String = text
+        .lines()
+        .rev()
+        .filter(|l| !l.trim().is_empty())
+        .take(12)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_ascii_lowercase();
+    MODEL_BADGES
+        .iter()
+        .find(|(needle, _)| tail.contains(needle))
+        .map(|(_, family)| format!("~{family}"))
+}
+
+/// Resolve an agent's model, in strict priority order: the `@pane_model` hook
+/// option is authoritative (the agent reports its own model), then the process
+/// args, then a model pinned in the process environment, and finally — only when
+/// all of those are absent — a low-confidence guess scraped from the agent's
+/// on-screen status-line badge. A screen guess never overrides a value any higher
+/// source produced.
 fn resolve_model(
     hook_model: &str,
     pane_pid: Option<u32>,
     processes: &HashMap<u32, ProcessInfo>,
+    screen: Option<&str>,
 ) -> Option<String> {
     let hook_model = hook_model.trim();
     if !hook_model.is_empty() {
         return Some(hook_model.to_string());
     }
-    model_from_args(pane_pid, processes).or_else(|| model_from_env(pane_pid, processes))
+    model_from_args(pane_pid, processes)
+        .or_else(|| model_from_env(pane_pid, processes))
+        .or_else(|| screen.and_then(model_from_screen))
 }
 
 fn infer_agent(
@@ -727,16 +772,19 @@ fn capture_pane_text(pane_id: &str) -> String {
     tmux(&["capture-pane", "-pt", pane_id, "-S", "-80"])
 }
 
+/// Refine a pane from its captured screen and return the captured text, so the
+/// caller can reuse it (e.g. to scrape a model badge) without a second
+/// `capture-pane`. Returns `None` only when the pane captured empty.
 fn infer_from_capture(
     pane_id: &str,
     pane: &mut TmuxPane,
     prev: &HashMap<String, PaneActivity>,
     current: &mut HashMap<String, PaneActivity>,
     now: u64,
-) {
+) -> Option<String> {
     let text = capture_pane_text(pane_id);
     if text.is_empty() {
-        return;
+        return None;
     }
     let lower = text.to_ascii_lowercase();
     let kind = pane
@@ -745,7 +793,7 @@ fn infer_from_capture(
         .map(|a| a.kind.clone())
         .or_else(|| detect_agent_name(&lower).map(ToOwned::to_owned));
     let Some(kind) = kind else {
-        return;
+        return Some(text);
     };
 
     let (status, conf, wait_reason) = classify_capture(&text);
@@ -786,6 +834,7 @@ fn infer_from_capture(
             });
         }
     }
+    Some(text)
 }
 
 pub fn tmux_snapshot() -> TmuxSnapshot {
@@ -845,7 +894,7 @@ impl MuxBackend for TmuxBackend {
             // on screen that process/command matching missed). infer_from_capture
             // returns early for panes with no agent signal, so the cost is a
             // capture-pane call per pane on open/refresh only.
-            if options.capture_pane {
+            let captured = if options.capture_pane {
                 let pane_id = pane.id.clone();
                 infer_from_capture(
                     &pane_id,
@@ -853,12 +902,15 @@ impl MuxBackend for TmuxBackend {
                     &prev_activity,
                     &mut current_activity,
                     now,
-                );
-            }
+                )
+            } else {
+                None
+            };
             // Resolve the model once the agent (if any) is finalized: the
-            // @pane_model hook option wins, else the process args.
+            // @pane_model hook option wins, else process args, then the env, then
+            // a low-confidence guess scraped from the captured screen badge.
             if let Some(agent) = pane.agent.as_mut() {
-                agent.model = resolve_model(parts[17], pane_pid, &processes);
+                agent.model = resolve_model(parts[17], pane_pid, &processes, captured.as_deref());
             }
             let window = sessions
                 .entry(session_name)
@@ -1121,8 +1173,44 @@ mod pane_status_tests {
 
         // The hook option wins over args when present.
         assert_eq!(
-            resolve_model("claude-opus-4-8", Some(100), &procs).as_deref(),
+            resolve_model("claude-opus-4-8", Some(100), &procs, None).as_deref(),
             Some("claude-opus-4-8")
+        );
+    }
+
+    #[test]
+    fn model_from_screen_reads_status_badge() {
+        // Claude's on-screen footer badge → a `~`-prefixed family guess.
+        let screen = "some prose\n🤖 Op1M 🔥  █░░░░░ 780k left  🔋 76%  ⏱ 2h56m\n-- INSERT --";
+        assert_eq!(model_from_screen(screen).as_deref(), Some("~opus"));
+        assert_eq!(
+            model_from_screen("… Sonnet  120k left  40%").as_deref(),
+            Some("~sonnet")
+        );
+        // A plain shell screen with no badge yields nothing.
+        assert_eq!(model_from_screen("$ ls -la\ntotal 0\n$ "), None);
+
+        // Screen scrape is strictly last: any higher source wins, and the guess
+        // only fills in when hook + args + env are all absent.
+        let mut procs: HashMap<u32, ProcessInfo> = HashMap::new();
+        procs.insert(
+            100,
+            ProcessInfo {
+                ppid: 1,
+                comm: "node".to_string(),
+                args: "node /usr/bin/claude --model opus-4.8".to_string(),
+            },
+        );
+        // args present → screen ignored.
+        assert_eq!(
+            resolve_model("", Some(100), &procs, Some("🤖 Op1M 780k left")).as_deref(),
+            Some("opus-4.8")
+        );
+        // no hook/args/env → screen guess fills in.
+        let bare: HashMap<u32, ProcessInfo> = HashMap::new();
+        assert_eq!(
+            resolve_model("", Some(999), &bare, Some("🤖 Op1M 780k left")).as_deref(),
+            Some("~opus")
         );
     }
 

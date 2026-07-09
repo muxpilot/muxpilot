@@ -4,6 +4,17 @@ All notable changes to MuxPilot are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Model guessed from the on-screen badge.** When an agent reports no model
+  through the `@pane_model` hook, a `--model` arg, or a model env var, MuxPilot
+  now scrapes the model family off the agent's on-screen status line (e.g.
+  Claude's `🤖 Op1M …` footer) as a last-resort, lowest-confidence source. The
+  guess is a family (`~opus`, `~sonnet`), prefixed with `~` to mark it as a
+  guess, and it never overrides a model a higher source reported.
+
 ## [0.1.2] - 2026-07-09
 
 ### Added
