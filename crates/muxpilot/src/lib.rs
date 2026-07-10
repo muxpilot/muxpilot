@@ -38,6 +38,8 @@ mod demo;
 #[cfg(test)]
 pub(crate) use demo::build_demo_entries;
 
+mod ui_spec;
+
 mod fzf;
 use fzf::{shell_single_quote, FZF_FOOTER, FZF_HEADER, FZF_HELP};
 
@@ -392,6 +394,12 @@ pub async fn run(args: Vec<String>) -> Result<ExitCode, AppError> {
             .unwrap_or(200)
             .clamp(1, 100_000);
         return demo::run_demo(count);
+    }
+
+    // Hidden maintainer command: emit the real per-mode render as a JSON
+    // contract (keeps external mockups from drifting). See `ui_spec.rs`.
+    if args.first().is_some_and(|a| a == "ui-spec") {
+        return ui_spec::run_ui_spec();
     }
 
     if args.first().is_some_and(|a| a == "doctor") {
