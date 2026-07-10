@@ -628,17 +628,40 @@ fn workspace_detail_includes_window_summaries() {
 
 #[test]
 fn demo_generates_requested_count() {
-    assert_eq!(build_demo_entries(0).len(), 0);
-    assert_eq!(build_demo_entries(1).len(), 1);
-    assert_eq!(build_demo_entries(500).len(), 500);
+    // `count` sizes the tmuxinator inventory (the full workspace set). Layouts
+    // mode shows all of them; Sessions shows only the running subset, so the two
+    // counts differ by design — the faithful, real-builder behavior.
+    for n in [0usize, 1, 500] {
+        let (model, snap) = build_demo_snapshot(n);
+        assert_eq!(
+            build_layout_entries(&model, &snap).len(),
+            n,
+            "layouts inventory == requested count"
+        );
+    }
+    let (model, snap) = build_demo_snapshot(500);
+    let sessions = build_session_entries(&model, &snap);
+    assert!(!sessions.is_empty());
+    assert!(
+        sessions.len() < 500,
+        "Sessions is running-only, a subset of the inventory"
+    );
+    assert!(
+        sessions.iter().all(|e| e.group.label() == "RUNNING"),
+        "Sessions must be running-only — no tmuxinator group leaks in"
+    );
 }
 
 #[test]
 fn demo_rows_never_shift_columns() {
     // Every rendered row (glyph prefix + column area) must be exactly the list
-    // width, for a huge, deliberately overflow-heavy fake inventory across the
-    // full range of terminal widths — this is the anti-shift guarantee.
-    let entries = build_demo_entries(500);
+    // width, across all four modes, for a huge overflow-heavy fake inventory and
+    // the full range of terminal widths — the anti-shift guarantee.
+    let (model, snap) = build_demo_snapshot(500);
+    let mut entries = build_session_entries(&model, &snap);
+    entries.extend(build_agent_entries(&snap));
+    entries.extend(build_layout_entries(&model, &snap));
+    entries.extend(build_directory_entries(&model));
     for &list_width in &[24usize, 32, 40, 46, 60, 80, 84, 120] {
         let content = list_width.saturating_sub(4);
         for entry in &entries {
@@ -659,8 +682,10 @@ fn demo_rows_never_shift_columns() {
 
 #[test]
 fn demo_rows_truncate_long_names_with_ellipsis() {
-    let entries = build_demo_entries(200);
-    // The fixture guarantees at least one name far longer than any column.
+    let (model, snap) = build_demo_snapshot(200);
+    // The fixture guarantees a name far longer than any column; every workspace
+    // gets a layout, so the Layouts inventory always carries it.
+    let entries = build_layout_entries(&model, &snap);
     let long = entries
         .iter()
         .find(|e| e.line.contains("customer-support-chatbot-training-pipeline"))
@@ -675,12 +700,15 @@ fn demo_rows_truncate_long_names_with_ellipsis() {
 
 #[test]
 fn demo_filtering_is_correct() {
-    let entries = build_demo_entries(500);
+    // Exercise `entry_matches`' substring filtering over the merged oracle built
+    // from the demo world (running sessions with agents + layouts + dirs).
+    let (model, snap) = build_demo_snapshot(500);
+    let entries = build_native_entries(&model, &snap);
 
     // A query that exists narrows to only matching rows.
     let hits: Vec<_> = entries
         .iter()
-        .filter(|e| entry_matches(e, "payments-service", native_state::SearchMode::All))
+        .filter(|e| entry_matches(e, "payments-service"))
         .collect();
     assert!(!hits.is_empty());
     assert!(hits.iter().all(|e| e.search_text.contains("payments-service")));
@@ -688,21 +716,16 @@ fn demo_filtering_is_correct() {
     // A query that cannot match returns nothing.
     let none = entries
         .iter()
-        .filter(|e| entry_matches(e, "zzzzz-no-such-workspace", native_state::SearchMode::All))
+        .filter(|e| entry_matches(e, "zzzzz-no-such-workspace"))
         .count();
     assert_eq!(none, 0);
 
-    // The Agents scope only admits rows tagged as agents.
-    let agents: Vec<_> = entries
-        .iter()
-        .filter(|e| entry_matches(e, "", native_state::SearchMode::Agents))
-        .collect();
-    assert!(!agents.is_empty());
-    assert!(agents.iter().all(|e| e.tags.contains(&"agent")));
+    // The demo world contains agent-bearing sessions, so agent-tagged rows exist.
+    assert!(entries.iter().any(|e| e.tags.contains(&"agent")));
 
     // Multi-token filtering requires every token to be present.
     for e in &entries {
-        let matched = entry_matches(e, "agent payments-service", native_state::SearchMode::All);
+        let matched = entry_matches(e, "agent payments-service");
         assert_eq!(
             matched,
             e.search_text.contains("agent") && e.search_text.contains("payments-service")

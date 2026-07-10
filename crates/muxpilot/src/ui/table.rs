@@ -1,4 +1,4 @@
-use crate::native_state::{NativeEntry, NativeGroup, PaneRow, SearchMode, Theme, WindowRow};
+use crate::native_state::{NativeEntry, NativeGroup, PaneRow, Theme, WindowRow};
 
 use super::columns::{render_row, solve, Align, Constraint};
 use super::text::{pad_to_width, raw_styled, styled_segment};
@@ -218,10 +218,7 @@ pub(crate) fn highlight_matches(
     out
 }
 
-pub(crate) fn entry_matches(entry: &NativeEntry, query: &str, mode: SearchMode) -> bool {
-    if !mode.accepts(entry) {
-        return false;
-    }
+pub(crate) fn entry_matches(entry: &NativeEntry, query: &str) -> bool {
     let query = query.trim().to_ascii_lowercase();
     if query.is_empty() {
         return true;

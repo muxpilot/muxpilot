@@ -36,7 +36,7 @@ pub(crate) use native_state::NativeEntry;
 
 mod demo;
 #[cfg(test)]
-pub(crate) use demo::build_demo_entries;
+pub(crate) use demo::build_demo_snapshot;
 
 mod ui_spec;
 

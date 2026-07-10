@@ -8,7 +8,7 @@ use crossterm::terminal;
 
 use crate::keymap::{Action, Keymap};
 use crate::model::{build_menu_lines, parse_selection, MenuModel, Selection};
-use crate::native_state::{FilterInput, NativeAction, NativeEntry, PickerMode, SearchMode};
+use crate::native_state::{FilterInput, NativeAction, NativeEntry, PickerMode};
 use crate::native_view::{
     apply_tree_key, draw_native_picker, help_max_scroll, selectable_rows, visible_has_agent,
     PickerView, Selectable, TreeKey,
@@ -26,8 +26,13 @@ use crate::workspace_entries::{
 use crate::{home, select_with_fzf};
 
 /// Build the entry list for the active mode. Each mode is its own list built by
-/// its own function — no shared merged view.
-fn entries_for_mode(mode: PickerMode, model: &MenuModel, snapshot: &TmuxSnapshot) -> Vec<NativeEntry> {
+/// its own function — no shared merged view. Shared with `demo` so recordings
+/// exercise the same per-mode builders the interactive picker does.
+pub(crate) fn entries_for_mode(
+    mode: PickerMode,
+    model: &MenuModel,
+    snapshot: &TmuxSnapshot,
+) -> Vec<NativeEntry> {
     match mode {
         PickerMode::Sessions => build_session_entries(model, snapshot),
         PickerMode::Agents => build_agent_entries(snapshot),
@@ -142,7 +147,7 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             .iter()
             .enumerate()
             .filter_map(|(idx, entry)| {
-                entry_matches(entry, filter.text(), SearchMode::All).then_some(idx)
+                entry_matches(entry, filter.text()).then_some(idx)
             })
             .collect();
         let selectables = selectable_rows(&entries, &filtered, &expanded);

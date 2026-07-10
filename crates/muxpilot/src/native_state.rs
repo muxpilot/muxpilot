@@ -161,49 +161,13 @@ impl NativeEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SearchMode {
-    All,
-    Sessions,
-    Agents,
-    Projects,
-    Dirs,
-}
-
-impl SearchMode {
-    pub(crate) fn next(self) -> Self {
-        match self {
-            Self::All => Self::Sessions,
-            Self::Sessions => Self::Agents,
-            Self::Agents => Self::Projects,
-            Self::Projects => Self::Dirs,
-            Self::Dirs => Self::All,
-        }
-    }
-
-    pub(crate) fn accepts(self, entry: &NativeEntry) -> bool {
-        match self {
-            Self::All => true,
-            Self::Sessions => entry
-                .tags
-                .iter()
-                .any(|t| matches!(*t, "session" | "window")),
-            Self::Agents => entry.tags.contains(&"agent"),
-            Self::Projects => entry
-                .tags
-                .iter()
-                .any(|t| matches!(*t, "project" | "layout")),
-            Self::Dirs => entry.tags.contains(&"dir"),
-        }
-    }
-}
-
-/// The picker's top-level mode. Unlike [`SearchMode`] (a client-side filter over
-/// one merged list), each mode is a distinct list built by its own function and
-/// picks the *honest* unit for its question: Sessions is the running-session
-/// tree, Agents is one row per agent-pane (so model/state are never ambiguous),
-/// Layouts is the startable tmuxinator inventory, Dirs is the directory picker.
-/// Switched via footer command keys `s`/`a`/`x`/`d` (and cycled with Tab).
+/// The picker's top-level mode. Each mode is a distinct list built by its own
+/// function and picks the *honest* unit for its question: Sessions is the
+/// running-session tree, Agents is one row per agent-pane (so model/state are
+/// never ambiguous), Layouts is the startable tmuxinator inventory, Dirs is the
+/// directory picker. Switched via footer command keys `s`/`a`/`x`/`d` (and
+/// cycled with Tab). The visible list is then narrowed by a plain substring
+/// filter ([`crate::ui::entry_matches`]) — there is no per-mode scope filter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PickerMode {
     Sessions,
