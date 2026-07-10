@@ -5,9 +5,12 @@ Source themes/muxpilot.tape
 Output ../apps/web/public/media/filter.gif
 Output ../apps/web/public/media/filter.mp4
 
+# Launch off-camera so the clip opens on the picker, not a shell typing.
+Hide
 Type "muxpilot demo --count 14"
 Enter
-Sleep 1s
+Sleep 1.5s
+Show
 
 # Enter filter mode and type a query — watch the list narrow.
 Type "/"

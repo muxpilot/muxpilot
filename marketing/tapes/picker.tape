@@ -8,10 +8,13 @@ Source themes/muxpilot.tape
 Output ../apps/web/public/media/picker.gif
 Output ../apps/web/public/media/picker.mp4
 
-# Launch the deterministic demo picker with enough rows to fill the frame.
+# Launch the demo picker off-camera (Hide/Show), so the recording opens ON the
+# picker instead of a shell slowly typing the command. Enough rows to fill frame.
+Hide
 Type "muxpilot demo --count 14"
 Enter
-Sleep 1.2s
+Sleep 1.5s
+Show
 
 # Poster: the clean grouped list.
 Screenshot ../apps/web/public/media/picker.png

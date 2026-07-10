@@ -7,9 +7,12 @@ Source themes/muxpilot.tape
 Output ../apps/web/public/media/tree.gif
 Output ../apps/web/public/media/tree.mp4
 
+# Launch off-camera so the clip opens on the picker, not a shell typing.
+Hide
 Type "muxpilot demo --count 14"
 Enter
-Sleep 1.2s
+Sleep 1.5s
+Show
 
 # Jump to the top session and expand it. Windows appear, and every window with a
 # coding agent auto-reveals that pane (agent + model + status) beneath it.

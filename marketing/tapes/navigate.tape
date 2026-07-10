@@ -6,9 +6,12 @@ Source themes/muxpilot.tape
 Output ../apps/web/public/media/navigate.gif
 Output ../apps/web/public/media/navigate.mp4
 
+# Launch off-camera so the clip opens on the picker, not a shell typing.
+Hide
 Type "muxpilot demo --count 14"
 Enter
-Sleep 1s
+Sleep 1.5s
+Show
 
 # Walk down, jump to the bottom, jump back to the top.
 Type "jjj"
