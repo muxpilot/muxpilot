@@ -14,11 +14,11 @@ Enter
 Sleep 1.5s
 Show
 
-# Jump to the top session and expand it. Windows appear, and every window with a
-# coding agent auto-reveals that pane (agent + model + status) beneath it.
+# Jump to the top session and expand it (t = tree). Windows appear, and every
+# window with a coding agent auto-reveals that pane (agent + model + status).
 Type "g"
 Sleep 500ms
-Type "l"
+Type "t"
 Sleep 1.2s
 Screenshot ../apps/web/public/media/tree.png
 
@@ -30,16 +30,16 @@ Sleep 500ms
 Type "j"
 Sleep 700ms
 
-# Fully expand a window to show its plain shell panes too, then collapse back.
-Type "l"
+# Fully expand a window to show its plain shell panes too, then collapse back (←).
+Type "t"
 Sleep 900ms
-Type "h"
+Left
 Sleep 700ms
 
 # Collapse the session again (cursor jumps back to it).
 Type "g"
 Sleep 300ms
-Type "h"
+Left
 Sleep 900ms
 
 Type "q"

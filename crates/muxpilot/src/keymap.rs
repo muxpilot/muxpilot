@@ -30,13 +30,13 @@ pub(crate) enum Action {
     /// Move a half page down / up.
     PageDown,
     PageUp,
-    /// `l`/→ — expand the tree one level (or close an open one).
+    /// `t`/→ — expand the tree one level (or close an open one).
     ExpandLevel,
     /// Space — toggle the current tree node.
     ToggleLevel,
-    /// `h`/← — collapse the current tree level.
+    /// ← — collapse the current tree level.
     CollapseLevel,
-    /// Jump straight to a specific mode (`s`/`a`/`x`/`d`).
+    /// Jump straight to a specific mode (`s`/`a`/`l`/`d`).
     SwitchMode(PickerMode),
     /// Tab — cycle to the next mode.
     NextMode,
@@ -77,19 +77,24 @@ impl Keymap {
                 (KeyCode::Char('G'), n, Bottom),
                 (KeyCode::Char('d'), c, PageDown),
                 (KeyCode::Char('u'), c, PageUp),
-                (KeyCode::Char('l'), n, ExpandLevel),
+                // Tree: `t` expands/collapses the node under the cursor (mnemonic
+                // "tree"); the arrows still do granular expand/collapse and Space
+                // toggles. `h`/`l` are no longer tree keys — `l` is now Layouts.
+                (KeyCode::Char('t'), n, ExpandLevel),
                 (KeyCode::Right, n, ExpandLevel),
                 (KeyCode::Char(' '), n, ToggleLevel),
-                (KeyCode::Char('h'), n, CollapseLevel),
                 (KeyCode::Left, n, CollapseLevel),
+                // Mode switches are mnemonic: sessions/agents/layouts/dirs.
                 (KeyCode::Char('s'), n, SwitchMode(Sessions)),
                 (KeyCode::Char('a'), n, SwitchMode(Agents)),
-                (KeyCode::Char('x'), n, SwitchMode(Layouts)),
+                (KeyCode::Char('l'), n, SwitchMode(Layouts)),
                 (KeyCode::Char('d'), n, SwitchMode(Dirs)),
                 (KeyCode::Tab, n, NextMode),
                 (KeyCode::Char('/'), n, EditFilter),
                 (KeyCode::Char('?'), n, ToggleHelp),
-                (KeyCode::Char('t'), n, ToggleTheme),
+                // Theme toggle moved to `T` (Shift+t) so `t` can mean "tree";
+                // `resolve` strips SHIFT, so `Char('T')` matches without a modifier.
+                (KeyCode::Char('T'), n, ToggleTheme),
                 (KeyCode::Char('r'), n, Refresh),
             ],
         }

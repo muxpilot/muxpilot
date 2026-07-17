@@ -40,6 +40,8 @@ pub(crate) struct Labels {
     pub(crate) action_start: &'static str,
     pub(crate) action_next_mode: &'static str,
     pub(crate) action_tree: &'static str,
+    /// Footer hint for the digit+arrow relative jump.
+    pub(crate) action_jump: &'static str,
     pub(crate) action_filter: &'static str,
     pub(crate) action_help: &'static str,
     pub(crate) action_close: &'static str,
@@ -80,6 +82,7 @@ pub(crate) const EN: Labels = Labels {
     action_start: "start",
     action_next_mode: "next tab",
     action_tree: "tree",
+    action_jump: "jump",
     action_filter: "filter",
     action_help: "help",
     action_close: "close",

@@ -1173,8 +1173,51 @@ fn keymap_resolves_command_bindings() {
     assert_eq!(km.resolve(KeyCode::Char('a'), none), Some(Action::SwitchMode(PickerMode::Agents)));
     assert_eq!(km.resolve(KeyCode::Char('c'), ctrl), Some(Action::Quit));
     assert_eq!(km.resolve(KeyCode::Tab, none), Some(Action::NextMode));
+
+    // Mnemonic remap: `l` switches to Layouts, `t` drives the tree, `T` toggles
+    // the theme. SHIFT is stripped, so `T` matches with a bare modifier.
+    assert_eq!(
+        km.resolve(KeyCode::Char('l'), none),
+        Some(Action::SwitchMode(PickerMode::Layouts))
+    );
+    assert_eq!(km.resolve(KeyCode::Char('s'), none), Some(Action::SwitchMode(PickerMode::Sessions)));
+    assert_eq!(km.resolve(KeyCode::Char('t'), none), Some(Action::ExpandLevel));
+    assert_eq!(km.resolve(KeyCode::Right, none), Some(Action::ExpandLevel));
+    assert_eq!(km.resolve(KeyCode::Left, none), Some(Action::CollapseLevel));
+    assert_eq!(km.resolve(KeyCode::Char(' '), none), Some(Action::ToggleLevel));
+    assert_eq!(km.resolve(KeyCode::Char('T'), KeyModifiers::SHIFT), Some(Action::ToggleTheme));
+    // The old bindings are gone: `x` (was Layouts), `h`/`l` tree nav, `t` theme.
+    assert_eq!(km.resolve(KeyCode::Char('x'), none), None);
+    assert_eq!(km.resolve(KeyCode::Char('h'), none), None);
     // Unbound keys resolve to nothing.
     assert_eq!(km.resolve(KeyCode::Char('z'), none), None);
+}
+
+#[test]
+fn digit_prefix_jump_moves_and_clamps() {
+    use crate::native_picker::jumped;
+    // Bare arrow is a count of 1.
+    assert_eq!(jumped(0, 10, 1, true), 1);
+    assert_eq!(jumped(5, 10, 1, false), 4);
+    // A digit prefix jumps that many navigable rows.
+    assert_eq!(jumped(0, 10, 5, true), 5);
+    assert_eq!(jumped(7, 10, 3, false), 4);
+    // Jumps clamp to the list bounds instead of overrunning.
+    assert_eq!(jumped(8, 10, 9, true), 9);
+    assert_eq!(jumped(2, 10, 9, false), 0);
+    // An empty list stays put at 0.
+    assert_eq!(jumped(0, 0, 5, true), 0);
+}
+
+#[test]
+fn jump_gutter_shows_only_on_wide_normal_terminals() {
+    use crate::native_view::jump_gutter_width;
+    // Wide, normal-height list gets the gutter.
+    assert_eq!(jump_gutter_width(false, 80), 3);
+    // Too narrow: no gutter (the row content needs the width).
+    assert_eq!(jump_gutter_width(false, 40), 0);
+    // Compact height never shows it, however wide.
+    assert_eq!(jump_gutter_width(true, 200), 0);
 }
 
 #[test]

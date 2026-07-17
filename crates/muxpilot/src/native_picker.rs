@@ -41,6 +41,21 @@ pub(crate) fn entries_for_mode(
     }
 }
 
+/// The cursor position after moving `count` navigable rows in a direction,
+/// clamped to the list bounds. `count` comes from the digit prefix (1 for a
+/// bare arrow). Shared by the picker and the demo so digit+arrow jumps behave
+/// identically in both loops.
+pub(crate) fn jumped(cursor: usize, len: usize, count: usize, down: bool) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    if down {
+        (cursor + count).min(len - 1)
+    } else {
+        cursor.saturating_sub(count)
+    }
+}
+
 /// The `Selection` the cursor currently points at, resolving through the tree
 /// level (session / window / pane). Shared by Enter in both command and
 /// filter-edit modes so they can never disagree.
@@ -131,6 +146,10 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
     let mut fleet = fleet_summary(&snapshot);
     let mut filter = FilterInput::default();
     let mut cursor = 0usize;
+    // A digit 1-9 pressed in command mode arms a relative jump consumed by the
+    // next Up/Down motion; the gutter shows each row's distance so the user knows
+    // which digit to type. Single digit only (max 9) — bigger hops use Ctrl-D/U.
+    let mut pending_count: Option<u8> = None;
     // On first render, home the cursor onto the current workspace (◆) instead of
     // the top row, so the picker opens on "where you are". Set once.
     let mut cursor_homed = false;
@@ -267,11 +286,23 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
             continue;
         }
 
-        // Command mode: Esc closes the picker; every other key resolves through
-        // the (reconfigurable) keymap to a semantic Action.
+        // Command mode. A digit 1-9 arms the jump count and waits for the motion;
+        // any other key first drains the count (so it applies only to the very
+        // next Up/Down, vim-style), then resolves through the keymap to an Action.
+        if !ctrl {
+            if let KeyCode::Char(c @ '1'..='9') = key.code {
+                pending_count = Some((c as u8) - b'0');
+                continue;
+            }
+        }
+        // Esc clears a pending count if there is one; otherwise it closes.
         if key.code == KeyCode::Esc {
+            if pending_count.take().is_some() {
+                continue;
+            }
             return Ok(None);
         }
+        let count = pending_count.take().unwrap_or(1) as usize;
         match keymap.resolve(key.code, key.modifiers) {
             Some(Action::Open) => {
                 if let Some(sel) = selection_at(&selectables, &filtered, &entries, cursor) {
@@ -279,12 +310,8 @@ pub(crate) async fn select_native(model: &MenuModel) -> Result<Option<Selection>
                 }
             }
             Some(Action::Quit) => return Ok(None),
-            Some(Action::Down) => {
-                if !selectables.is_empty() {
-                    cursor = (cursor + 1).min(selectables.len() - 1);
-                }
-            }
-            Some(Action::Up) => cursor = cursor.saturating_sub(1),
+            Some(Action::Down) => cursor = jumped(cursor, selectables.len(), count, true),
+            Some(Action::Up) => cursor = jumped(cursor, selectables.len(), count, false),
             Some(Action::Top) => cursor = 0,
             Some(Action::Bottom) => {
                 if !selectables.is_empty() {

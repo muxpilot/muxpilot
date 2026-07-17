@@ -9,6 +9,39 @@ use crate::ui::*;
 
 /// Fixed left gutter before the column area: `marker + space + glyph + space`.
 const PREFIX: usize = 4;
+/// Width of the relative-number jump gutter (`" N "`) shown to the left of the
+/// list on wide-enough terminals. `0` disables it.
+const JUMP_GUTTER: usize = 3;
+/// Only show the jump gutter when the list is at least this wide — on a cramped
+/// terminal the extra column would steal space the row content needs.
+const JUMP_GUTTER_MIN_LIST_WIDTH: usize = 60;
+
+/// The jump-gutter width for the current layout: the gutter is drawn only on
+/// normal-height, wide-enough terminals so it never crowds a small picker.
+pub(crate) fn jump_gutter_width(compact: bool, list_width: usize) -> usize {
+    if !compact && list_width >= JUMP_GUTTER_MIN_LIST_WIDTH {
+        JUMP_GUTTER
+    } else {
+        0
+    }
+}
+
+/// Draw the relative-number cell in the left gutter for one body row. `dist` is
+/// the row's distance from the cursor in navigable rows — exactly the digit the
+/// user types before `↑`/`↓` to land on it. `None` (a header) or `0`/`>9` (the
+/// cursor row / out of single-digit reach) renders blank.
+fn draw_jump_gutter(frame_line: &mut String, gutter: usize, dist: Option<usize>, theme: &Theme) {
+    if gutter == 0 {
+        return;
+    }
+    match dist {
+        Some(d) if (1..=9).contains(&d) => {
+            let text = format!("{d:>width$} ", width = gutter - 1);
+            set_frame_segment(frame_line, 0, gutter, &text, theme.group);
+        }
+        _ => set_frame_segment(frame_line, 0, gutter, "", theme.panel),
+    }
+}
 /// Trailing columns kept clear on the right so the rightmost value never sits in
 /// the terminal's final cell — the row background still fills edge-to-edge, but
 /// text is inset. Keeps last-activity readable and avoids terminal/recorder
@@ -467,9 +500,11 @@ fn draw_group_header(
 }
 
 /// Draw one workspace row: colored marker + glyph, then the aligned columns.
+/// `left` insets the whole row past the jump gutter (0 when the gutter is off).
 fn draw_entry_row(
     frame_line: &mut String,
     list_width: usize,
+    left: usize,
     entry: &NativeEntry,
     selected: bool,
     query: &str,
@@ -480,13 +515,13 @@ fn draw_entry_row(
     } else {
         theme.panel
     };
-    // Fill the whole list area with the row background first.
-    set_frame_segment(frame_line, 0, list_width, "", row_style);
+    // Fill the row area (past the gutter) with the row background first.
+    set_frame_segment(frame_line, left, list_width.saturating_sub(left), "", row_style);
 
     // Marker (accent bar on the selected row).
     let marker = if selected { GLYPHS.marker } else { " " };
     let marker_style = if selected { theme.marker } else { theme.panel };
-    set_frame_segment(frame_line, 0, 1, marker, marker_style);
+    set_frame_segment(frame_line, left, 1, marker, marker_style);
 
     // State glyph at column 2, colored by state (or bright when selected).
     let glyph = entry_glyph(entry).to_string();
@@ -495,12 +530,12 @@ fn draw_entry_row(
     } else {
         glyph_style(entry, theme)
     };
-    set_frame_segment(frame_line, 2, 1, &glyph, glyph_col_style);
+    set_frame_segment(frame_line, left + 2, 1, &glyph, glyph_col_style);
 
     // Columns start after the fixed prefix, inset by a right gutter so the last
     // value never lands in the terminal's final (clip-prone) cell.
-    if list_width > PREFIX + RIGHT_GUTTER {
-        let content_width = list_width - PREFIX - RIGHT_GUTTER;
+    if list_width > left + PREFIX + RIGHT_GUTTER {
+        let content_width = list_width - left - PREFIX - RIGHT_GUTTER;
         let columns = entry_columns(entry, content_width);
         let highlighted = highlight_matches(
             &columns,
@@ -509,15 +544,17 @@ fn draw_entry_row(
             row_style,
             theme.match_highlight,
         );
-        set_frame_raw_segment(frame_line, PREFIX, &highlighted);
+        set_frame_raw_segment(frame_line, left + PREFIX, &highlighted);
     }
 }
 
 /// Draw one expanded window child row: an indented tree connector under the
 /// parent session, then window columns aligned beneath the parent's columns.
+#[allow(clippy::too_many_arguments)]
 fn draw_window_row(
     frame_line: &mut String,
     list_width: usize,
+    left: usize,
     entry: &NativeEntry,
     win_idx: usize,
     selected: bool,
@@ -529,21 +566,21 @@ fn draw_window_row(
     };
     let is_last = win_idx + 1 == entry.windows.len();
     let row_style = if selected { theme.selected } else { theme.panel };
-    set_frame_segment(frame_line, 0, list_width, "", row_style);
+    set_frame_segment(frame_line, left, list_width.saturating_sub(left), "", row_style);
 
     // Accent marker on the selected row (matches entry rows).
     let marker = if selected { GLYPHS.marker } else { " " };
     let marker_style = if selected { theme.marker } else { theme.panel };
-    set_frame_segment(frame_line, 0, 1, marker, marker_style);
+    set_frame_segment(frame_line, left, 1, marker, marker_style);
 
     // Tree connector in the glyph gutter: `└`/`├` then `─`, so the window name
     // aligns exactly under the parent session name at PREFIX.
     let connector = if is_last { GLYPHS.tree_last } else { GLYPHS.tree_mid };
     let conn_style = if selected { theme.selected } else { theme.group };
-    set_frame_segment(frame_line, 2, 2, connector, conn_style);
+    set_frame_segment(frame_line, left + 2, 2, connector, conn_style);
 
-    if list_width > PREFIX + RIGHT_GUTTER {
-        let content_width = list_width - PREFIX - RIGHT_GUTTER;
+    if list_width > left + PREFIX + RIGHT_GUTTER {
+        let content_width = list_width - left - PREFIX - RIGHT_GUTTER;
         let columns = window_columns(win, content_width);
         let highlighted = highlight_matches(
             &columns,
@@ -552,7 +589,7 @@ fn draw_window_row(
             row_style,
             theme.match_highlight,
         );
-        set_frame_raw_segment(frame_line, PREFIX, &highlighted);
+        set_frame_raw_segment(frame_line, left + PREFIX, &highlighted);
     }
 }
 
@@ -562,6 +599,7 @@ fn draw_window_row(
 fn draw_pane_row(
     frame_line: &mut String,
     list_width: usize,
+    left: usize,
     window: &crate::native_state::WindowRow,
     pane_idx: usize,
     is_last: bool,
@@ -573,21 +611,21 @@ fn draw_pane_row(
         return;
     };
     let row_style = if selected { theme.selected } else { theme.panel };
-    set_frame_segment(frame_line, 0, list_width, "", row_style);
+    set_frame_segment(frame_line, left, list_width.saturating_sub(left), "", row_style);
 
     let marker = if selected { GLYPHS.marker } else { " " };
     let marker_style = if selected { theme.marker } else { theme.panel };
-    set_frame_segment(frame_line, 0, 1, marker, marker_style);
+    set_frame_segment(frame_line, left, 1, marker, marker_style);
 
     // Connector inset one level deeper than a window child (cols 4-5), so panes
     // visibly nest under their window.
     let connector = if is_last { GLYPHS.tree_last } else { GLYPHS.tree_mid };
     let conn_style = if selected { theme.selected } else { theme.group };
-    set_frame_segment(frame_line, 4, 2, connector, conn_style);
+    set_frame_segment(frame_line, left + 4, 2, connector, conn_style);
 
     const PANE_PREFIX: usize = 6;
-    if list_width > PANE_PREFIX + RIGHT_GUTTER {
-        let content_width = list_width - PANE_PREFIX - RIGHT_GUTTER;
+    if list_width > left + PANE_PREFIX + RIGHT_GUTTER {
+        let content_width = list_width - left - PANE_PREFIX - RIGHT_GUTTER;
         let columns = pane_columns(pane, content_width);
         let highlighted = highlight_matches(
             &columns,
@@ -596,7 +634,7 @@ fn draw_pane_row(
             row_style,
             theme.match_highlight,
         );
-        set_frame_raw_segment(frame_line, PANE_PREFIX, &highlighted);
+        set_frame_raw_segment(frame_line, left + PANE_PREFIX, &highlighted);
     }
 }
 
@@ -694,6 +732,26 @@ pub(crate) fn draw_native_picker(
     // Scroll so the cursor's display row stays visible (cursor drifts to bottom).
     let start = cursor_disp.saturating_sub(body_rows.saturating_sub(1));
 
+    // The relative-number jump gutter: each navigable row is labelled with its
+    // distance from the cursor (1..9), so `<n>↑`/`<n>↓` jumps straight to it.
+    // `nav_of_disp` maps each display row to its navigable index (None = header),
+    // so the distance shown always equals the count the motion consumes.
+    let gutter = jump_gutter_width(compact, list_width);
+    let nav_of_disp: Vec<Option<usize>> = {
+        let mut n = 0usize;
+        display
+            .iter()
+            .map(|d| match d {
+                DisplayRow::Header(_) => None,
+                _ => {
+                    let i = n;
+                    n += 1;
+                    Some(i)
+                }
+            })
+            .collect()
+    };
+
     for visual in 0..body_rows {
         let frame_row = body_start + visual;
         if frame_row >= rows {
@@ -704,19 +762,34 @@ pub(crate) fn draw_native_picker(
             continue;
         };
         let selected = disp_idx == cursor_disp;
+        let dist = nav_of_disp
+            .get(disp_idx)
+            .copied()
+            .flatten()
+            .map(|nav| nav.abs_diff(cursor));
+        draw_jump_gutter(&mut frame[frame_row], gutter, dist, theme);
         match disp {
             DisplayRow::Header(label) => {
-                draw_group_header(&mut frame[frame_row], 0, list_width, label, theme);
+                draw_group_header(&mut frame[frame_row], gutter, list_width - gutter, label, theme);
             }
             DisplayRow::Entry(pos) => {
                 let entry = &entries[filtered[*pos]];
-                draw_entry_row(&mut frame[frame_row], list_width, entry, selected, query, theme);
+                draw_entry_row(
+                    &mut frame[frame_row],
+                    list_width,
+                    gutter,
+                    entry,
+                    selected,
+                    query,
+                    theme,
+                );
             }
             DisplayRow::Window { pos, win } => {
                 let entry = &entries[filtered[*pos]];
                 draw_window_row(
                     &mut frame[frame_row],
                     list_width,
+                    gutter,
                     entry,
                     *win,
                     selected,
@@ -734,6 +807,7 @@ pub(crate) fn draw_native_picker(
                     draw_pane_row(
                         &mut frame[frame_row],
                         list_width,
+                        gutter,
                         window,
                         *pane,
                         is_last,
@@ -853,8 +927,9 @@ fn draw_footer(
     });
     pairs.push(("⇥", l.action_next_mode));
     if view.mode == PickerMode::Sessions {
-        pairs.push(("l", l.action_tree));
+        pairs.push(("t", l.action_tree));
     }
+    pairs.push(("1-9↑↓", l.action_jump));
     pairs.push(("/", l.action_filter));
     pairs.push(("?", l.action_help));
     pairs.push(("q", l.action_close));

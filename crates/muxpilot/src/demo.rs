@@ -23,8 +23,9 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal;
 
 use crate::error::AppError;
+use crate::keymap::{Action, Keymap};
 use crate::model::{DirItem, Layout, MenuModel};
-use crate::native_picker::entries_for_mode;
+use crate::native_picker::{entries_for_mode, jumped};
 use crate::native_state::{FilterInput, PickerMode};
 use crate::native_view::{
     apply_tree_key, draw_native_picker, help_max_scroll, selectable_rows, visible_has_agent,
@@ -298,12 +299,16 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
     }
 
     let _guard = CrosstermGuard::enter()?;
+    // The demo drives the REAL command-mode keymap so its bindings can never
+    // drift from the interactive picker — the two share `Keymap`/`Action`.
+    let keymap = Keymap::defaults();
     let mut mode = PickerMode::Sessions;
     let mut entries = entries_for_mode(mode, &model, &snapshot);
     // Real fleet counts, straight from the synthetic snapshot's agent panes.
     let fleet = fleet_summary(&snapshot);
     let mut filter = FilterInput::default();
     let mut cursor = 0usize;
+    let mut pending_count: Option<u8> = None;
     let mut show_help = false;
     let mut help_scroll = 0usize;
     let mut edit_filter = false;
@@ -357,109 +362,91 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
-        match key.code {
-            KeyCode::Char('c') if ctrl => return Ok(ExitCode::SUCCESS),
-            KeyCode::Char('u') if ctrl && edit_filter && !show_help => {
-                filter.clear();
-                cursor = 0;
+        // Ctrl-C quits from any sub-mode.
+        if ctrl && key.code == KeyCode::Char('c') {
+            return Ok(ExitCode::SUCCESS);
+        }
+
+        // Filter-edit mode owns the keyboard: readline-style line editing.
+        if edit_filter {
+            match key.code {
+                KeyCode::Esc => edit_filter = false,
+                KeyCode::Enter => return Ok(ExitCode::SUCCESS),
+                KeyCode::Char('u') if ctrl => {
+                    filter.clear();
+                    cursor = 0;
+                }
+                KeyCode::Char('w') if ctrl => {
+                    filter.delete_word_before_cursor();
+                    cursor = 0;
+                }
+                KeyCode::Backspace => {
+                    filter.backspace();
+                    cursor = 0;
+                }
+                KeyCode::Char(ch) if !ctrl => {
+                    filter.insert(ch);
+                    cursor = 0;
+                }
+                _ => {}
             }
-            KeyCode::Char('w') if ctrl && edit_filter && !show_help => {
-                filter.delete_word_before_cursor();
-                cursor = 0;
+            continue;
+        }
+
+        // Help overlay owns the keyboard: scrolling only.
+        if show_help {
+            let (_, rows) = terminal::size().unwrap_or((100, 30));
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('?') => show_help = false,
+                KeyCode::Down | KeyCode::Char('j') => {
+                    help_scroll = (help_scroll + 1).min(help_max_scroll(rows as usize));
+                }
+                KeyCode::Up | KeyCode::Char('k') => help_scroll = help_scroll.saturating_sub(1),
+                KeyCode::Char('g') => help_scroll = 0,
+                KeyCode::Char('G') => help_scroll = help_max_scroll(rows as usize),
+                _ => {}
             }
-            KeyCode::Esc => {
-                if show_help {
-                    show_help = false;
-                } else if edit_filter {
-                    edit_filter = false;
-                } else {
-                    return Ok(ExitCode::SUCCESS);
+            continue;
+        }
+
+        // Command mode: same digit-count + keymap dispatch as the real picker.
+        if !ctrl {
+            if let KeyCode::Char(c @ '1'..='9') = key.code {
+                pending_count = Some((c as u8) - b'0');
+                continue;
+            }
+        }
+        if key.code == KeyCode::Esc {
+            if pending_count.take().is_some() {
+                continue;
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
+        let count = pending_count.take().unwrap_or(1) as usize;
+        match keymap.resolve(key.code, key.modifiers) {
+            // Demo never launches anything — Enter/quit just close.
+            Some(Action::Open | Action::Quit) => return Ok(ExitCode::SUCCESS),
+            Some(Action::Down) => cursor = jumped(cursor, selectables.len(), count, true),
+            Some(Action::Up) => cursor = jumped(cursor, selectables.len(), count, false),
+            Some(Action::Top) => cursor = 0,
+            Some(Action::Bottom) => {
+                if !selectables.is_empty() {
+                    cursor = selectables.len() - 1;
                 }
             }
-            KeyCode::Backspace if edit_filter && !show_help => {
-                filter.backspace();
-                cursor = 0;
+            Some(Action::PageDown) => {
+                if !selectables.is_empty() {
+                    let (_, rows) = terminal::size().unwrap_or((100, 30));
+                    let step = (picker_body_rows(rows as usize) / 2).max(1);
+                    cursor = (cursor + step).min(selectables.len() - 1);
+                }
             }
-            KeyCode::Char(ch) if edit_filter && !show_help && !ctrl => {
-                filter.insert(ch);
-                cursor = 0;
-            }
-            KeyCode::Char('?') if !edit_filter => {
-                show_help = !show_help;
-                help_scroll = 0;
-            }
-            KeyCode::Down | KeyCode::Char('j') if show_help => {
-                let (_, rows) = terminal::size().unwrap_or((100, 30));
-                help_scroll = (help_scroll + 1).min(help_max_scroll(rows as usize));
-            }
-            KeyCode::Up | KeyCode::Char('k') if show_help => {
-                help_scroll = help_scroll.saturating_sub(1);
-            }
-            KeyCode::Char('t') if !edit_filter && !show_help => theme = theme.toggled(),
-            KeyCode::Char('q') if !edit_filter && !show_help => return Ok(ExitCode::SUCCESS),
-            KeyCode::Tab if !show_help => {
-                mode = mode.next();
-                entries = entries_for_mode(mode, &model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            // Tab-bar letters: jump straight to a mode (mirrors the real picker's
-            // s/a/x/d switch keys) so recordings can show the tabs in action.
-            KeyCode::Char('s') if !edit_filter && !show_help && !ctrl => {
-                mode = PickerMode::Sessions;
-                entries = entries_for_mode(mode, &model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            KeyCode::Char('a') if !edit_filter && !show_help && !ctrl => {
-                mode = PickerMode::Agents;
-                entries = entries_for_mode(mode, &model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            KeyCode::Char('x') if !edit_filter && !show_help && !ctrl => {
-                mode = PickerMode::Layouts;
-                entries = entries_for_mode(mode, &model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            KeyCode::Char('d') if !ctrl && !edit_filter && !show_help => {
-                mode = PickerMode::Dirs;
-                entries = entries_for_mode(mode, &model, &snapshot);
-                filter.clear();
-                cursor = 0;
-            }
-            KeyCode::Char('/') if !show_help => edit_filter = true,
-            KeyCode::Down | KeyCode::Char('j') if !show_help && !selectables.is_empty() => {
-                cursor = (cursor + 1).min(selectables.len() - 1);
-            }
-            KeyCode::Up | KeyCode::Char('k') if !show_help => cursor = cursor.saturating_sub(1),
-            KeyCode::Char('g') if !edit_filter && !show_help => cursor = 0,
-            KeyCode::Char('G') if !edit_filter && !show_help && !selectables.is_empty() => {
-                cursor = selectables.len() - 1;
-            }
-            KeyCode::Char('d') if ctrl && !edit_filter && !show_help && !selectables.is_empty() => {
-                let (_, rows) = terminal::size().unwrap_or((100, 30));
-                let step = (picker_body_rows(rows as usize) / 2).max(1);
-                cursor = (cursor + step).min(selectables.len() - 1);
-            }
-            KeyCode::Char('u') if ctrl && !edit_filter && !show_help => {
+            Some(Action::PageUp) => {
                 let (_, rows) = terminal::size().unwrap_or((100, 30));
                 let step = (picker_body_rows(rows as usize) / 2).max(1);
                 cursor = cursor.saturating_sub(step);
             }
-            // Tree: expand a running session into its windows / collapse it.
-            KeyCode::Char(' ') if !edit_filter && !show_help => {
-                cursor = apply_tree_key(
-                    TreeKey::Toggle,
-                    &selectables,
-                    &entries,
-                    &filtered,
-                    &mut expanded,
-                    cursor,
-                );
-            }
-            KeyCode::Char('l') | KeyCode::Right if !edit_filter && !show_help => {
+            Some(Action::ExpandLevel) => {
                 cursor = apply_tree_key(
                     TreeKey::EntryToggle,
                     &selectables,
@@ -469,7 +456,17 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
                     cursor,
                 );
             }
-            KeyCode::Char('h') | KeyCode::Left if !edit_filter && !show_help => {
+            Some(Action::ToggleLevel) => {
+                cursor = apply_tree_key(
+                    TreeKey::Toggle,
+                    &selectables,
+                    &entries,
+                    &filtered,
+                    &mut expanded,
+                    cursor,
+                );
+            }
+            Some(Action::CollapseLevel) => {
                 cursor = apply_tree_key(
                     TreeKey::Collapse,
                     &selectables,
@@ -479,11 +476,32 @@ pub(crate) fn run_demo(count: usize) -> Result<ExitCode, AppError> {
                     cursor,
                 );
             }
-            KeyCode::Enter if !show_help => {
-                // Demo never launches anything (session or window); just close.
-                return Ok(ExitCode::SUCCESS);
+            Some(Action::SwitchMode(target)) => {
+                if target != mode {
+                    mode = target;
+                    entries = entries_for_mode(mode, &model, &snapshot);
+                    filter.clear();
+                    cursor = 0;
+                }
             }
-            _ => {}
+            Some(Action::NextMode) => {
+                mode = mode.next();
+                entries = entries_for_mode(mode, &model, &snapshot);
+                filter.clear();
+                cursor = 0;
+            }
+            Some(Action::EditFilter) => edit_filter = true,
+            Some(Action::ToggleHelp) => {
+                show_help = true;
+                help_scroll = 0;
+            }
+            Some(Action::ToggleTheme) => theme = theme.toggled(),
+            // Static synthetic snapshot: refresh just rebuilds from cache.
+            Some(Action::Refresh) => {
+                entries = entries_for_mode(mode, &model, &snapshot);
+                cursor = 0;
+            }
+            None => {}
         }
     }
 }

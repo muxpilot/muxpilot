@@ -26,14 +26,15 @@ Sleep 450ms
 Type "j"
 Sleep 650ms
 
-# Expand this session into its windows, step through a couple, then collapse.
-Type "l"
+# Expand this session into its windows (t = tree), step through a couple, then
+# collapse (← collapses the current level).
+Type "t"
 Sleep 1s
 Type "j"
 Sleep 500ms
 Type "j"
 Sleep 600ms
-Type "h"
+Left
 Sleep 800ms
 
 # Close.
