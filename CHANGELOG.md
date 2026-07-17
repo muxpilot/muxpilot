@@ -4,6 +4,25 @@ All notable changes to MuxPilot are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-07-17
+
+### Added
+
+- **Digit-prefix relative jump.** Press a digit `1`-`9` then `↑`/`↓` (or `j`/`k`)
+  to hop that many rows at once instead of tapping the arrow repeatedly. On
+  wide-enough terminals a left **relative-number gutter** labels each row with its
+  distance from the cursor — exactly the digit to type — so long lists are one
+  keystroke away. `Esc` clears a pending count; bigger hops still use `Ctrl-D/U`.
+
+### Changed
+
+- **Mnemonic keyboard remap.** Mode switches are now all first-letter: `s`
+  sessions, `a` agents, **`l` layouts** (was `x`), `d` dirs. The tree
+  expand/collapse toggle moves to **`t`** ("tree"; `l`/`h` are no longer tree
+  keys — the `←`/`→` arrows and `Space` still work), and the light/dark theme
+  toggle moves to **`T`** (Shift+t). Pre-1.0 and single-user, so no compatibility
+  shims — the help overlay (`?`) documents the full set.
+
 ## [0.1.3] - 2026-07-09
 
 ### Added
@@ -114,6 +133,7 @@ Initial public release.
   (`brew install muxpilot/tap/muxpilot`), shell installer, and GitHub Releases,
   wired through cargo-dist.
 
+[0.1.4]: https://github.com/muxpilot/muxpilot/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/muxpilot/muxpilot/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/muxpilot/muxpilot/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/muxpilot/muxpilot/compare/v0.1.0...v0.1.1
