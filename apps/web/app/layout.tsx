@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import "./styles.css";
+import { themeInitScript } from "@npm-factory/site-chrome";
+import "@npm-factory/site-chrome/styles.css";
+import { THEME_STORAGE_KEY } from "./theme";
 
 export const metadata: Metadata = {
   title: {
@@ -12,7 +14,7 @@ export const metadata: Metadata = {
 
 // Runs before first paint to stamp the saved theme onto <html> so there is no
 // flash of the wrong palette. Falls back to the OS preference when unset.
-const THEME_INIT = `(function(){try{var t=localStorage.getItem('muxpilot-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
+const THEME_INIT = themeInitScript(THEME_STORAGE_KEY);
 
 export default function RootLayout({
   children,

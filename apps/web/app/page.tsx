@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SiteHeader } from "./components/SiteHeader";
 import { SiteFooter } from "./components/SiteFooter";
+import { FeatureHighlight, type Feature } from "@npm-factory/site-chrome";
 import { DemoClip } from "./components/DemoClip";
-import { FeatureHighlight, type Feature } from "./components/FeatureHighlight";
 import { MUXPILOT_VERSION } from "./version";
 
 // The feature showcase. To add a feature later: drop a screenshot in
@@ -276,6 +276,7 @@ export default function Home() {
                 key={feature.id}
                 feature={feature}
                 reversed={i % 2 === 1}
+                frameName="muxpilot"
               />
             ))}
           </div>

@@ -1,32 +1,23 @@
 import Link from "next/link";
-import { ThemeToggle } from "./ThemeToggle";
+import { SiteHeader as Chrome } from "@npm-factory/site-chrome";
+import { ThemeToggle } from "@npm-factory/site-chrome/theme-toggle";
+import { THEME_STORAGE_KEY } from "../theme";
 import { MUXPILOT_VERSION } from "../version";
 
-// Sticky top bar shared by the landing page and the docs section.
+// This site's configuration of the shared chrome header. The markup lives in
+// @npm-factory/site-chrome; everything below is what makes it muxpilot's.
 export function SiteHeader() {
   return (
-    <header className="site-header">
-      <div className="wrap nav">
-        <Link className="brand" href="/">
-          <span className="dot" /> muxpilot{" "}
-          <span className="sub">v{MUXPILOT_VERSION}</span>
-        </Link>
-        <span className="spacer" />
-        <Link className="link" href="/docs/introduction">
-          Docs
-        </Link>
-        <Link className="link" href="/#features">
-          Features
-        </Link>
-        <a
-          className="link"
-          href="https://github.com/muxpilot/muxpilot"
-          rel="noreferrer"
-        >
-          GitHub
-        </a>
-        <ThemeToggle />
-      </div>
-    </header>
+    <Chrome
+      brand="muxpilot"
+      version={MUXPILOT_VERSION}
+      linkComponent={Link}
+      links={[
+        { label: "Docs", href: "/docs/introduction" },
+        { label: "Features", href: "/#features" },
+        { label: "GitHub", href: "https://github.com/muxpilot/muxpilot", external: true },
+      ]}
+      actions={<ThemeToggle storageKey={THEME_STORAGE_KEY} />}
+    />
   );
 }
