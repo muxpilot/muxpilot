@@ -1,25 +1,38 @@
 {
   "name": "@muxpilot/web",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "next dev --port 3001",
+    "prepare-site": "agentvibes-site prepare",
+    "dev": "node scripts/sync-version.mjs && agentvibes-site prepare && next dev --port 3001",
     "prebuild": "node scripts/sync-version.mjs",
-    "build": "next build",
-    "start": "next start --port 3001"
+    "build": "agentvibes-site prepare && next build",
+    "start": "next start --port 3001",
+    "check": "agentvibes-site prepare && tsc -p tsconfig.json --noEmit && next build",
+    "doctor": "site-doctor check --next . --site ."
   },
   "dependencies": {
-    "@mdx-js/loader": "^3.1.1",
-    "@mdx-js/react": "^3.1.1",
-    "@next/mdx": "^16.2.10",
-    "@types/mdx": "^2.0.14",
-    "next": "^16.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@byoklab/site": "^0.4.2",
+    "@byoklab/site-config": "^0.3.0",
+    "fumadocs-core": "~16.4.9",
+    "fumadocs-mdx": "~14.2.6",
+    "fumadocs-ui": "~16.4.9",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@byoklab/site-doctor": "^0.3.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^22.10.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.8.0"
+    "postcss": "^8.4.47",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3"
   }
 }

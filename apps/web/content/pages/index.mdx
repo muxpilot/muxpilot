@@ -1,0 +1,45 @@
+---
+title: MuxPilot — agent-aware tmux workspace picker
+description: A fast Rust picker for tmux sessions, tmuxinator layouts, working directories, and the coding agents running inside them.
+---
+
+import { MUXPILOT_VERSION } from "../../lib/version";
+import { InstallCards } from "../../components/install-cards";
+import { FeatureList } from "../../components/features";
+
+<Hero
+  eyebrow={`v${MUXPILOT_VERSION} · Agent-aware tmux control`}
+  title="Pilot every tmux session from one menu."
+  tagline="A fast Rust picker for tmux sessions, tmuxinator layouts, working directories, and the coding agents running inside them."
+  install="cargo install --path crates/muxpilot"
+  actions={[
+    { label: "Install MuxPilot", href: "/docs/installation" },
+    { label: "Read the docs", href: "/docs/introduction" }
+  ]}
+/>
+
+<Video name="picker" label="MuxPilot picker demo" />
+
+## Install it your way — one binary, no runtime. [#get-started]
+
+<InstallCards />
+
+Then run `muxpilot` in any pane — or bind it to a tmux popup ([below](#plugin)). Confirm your setup any time with `muxpilot doctor`, or follow the [installation guide](/docs/installation).
+
+## One menu over everything you launch. [#features]
+
+<FeatureList />
+
+## Expand a session into its windows. [#windows]
+
+Press `l` or Space on a running session to unfold it into a tree of its windows, each with its pane count, agents, and last activity. Open any window directly with Enter; `h` collapses the session again.
+
+<Video name="tree" label="l / Space expands a session into its windows; h collapses it" />
+
+## Bind it to a key, launch it in a popup. [#plugin]
+
+```sh title="tmux.conf"
+bind-key C-j display-popup -E -w 80% -h 70% "muxpilot"
+```
+
+Install through TPM with `set -g @plugin 'muxpilot/muxpilot'`, or wire the popup binding by hand. See the [tmux plugin guide](/docs/tmux-plugin).

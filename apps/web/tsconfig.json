@@ -17,6 +17,9 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "types": [
+      "node"
+    ],
     "plugins": [
       {
         "name": "next"
@@ -24,9 +27,14 @@
     ]
   },
   "include": [
+    "site.config.ts",
+    "app",
+    "components",
+    "lib",
+    "proxy.ts",
+    "source.config.ts",
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    ".source",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

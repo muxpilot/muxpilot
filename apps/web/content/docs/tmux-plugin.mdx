@@ -1,8 +1,7 @@
-export const metadata = {
-  title: "tmux plugin",
-  description:
-    "Use MuxPilot as a tmux plugin: install via TPM or by hand, and bind the picker to a display-popup.",
-};
+---
+title: "tmux plugin"
+description: "Use MuxPilot as a tmux plugin: install via TPM or by hand, and bind the picker to a display-popup."
+---
 
 # Use MuxPilot as a tmux plugin
 
@@ -30,7 +29,7 @@ draws on top and disappears when you pick or cancel.
 If you use the [Tmux Plugin Manager](https://github.com/tmux-plugins/tpm), add
 the plugin to your `~/.tmux.conf`:
 
-```tmux
+```bash
 set -g @plugin 'muxpilot/muxpilot'
 ```
 
@@ -60,7 +59,7 @@ it never rebuilds if a `muxpilot` binary is already available.
 Whether you install via TPM or by hand, these are the bindings MuxPilot
 recommends. Put them in your `~/.tmux.conf`:
 
-```tmux
+```bash
 # Launch the picker in a popup over the current session
 bind-key C-j display-popup -E -w 80% -h 70% "muxpilot"
 
@@ -80,7 +79,7 @@ picking a target (or pressing `q`) returns you straight to your work. Adjust the
 MuxPilot's state commands emit JSON and compact text, so you can surface agent
 state directly in your tmux status line:
 
-```tmux
+```bash
 # Compact agent/session summary, refreshed every 5s
 set -g status-interval 5
 set -g status-right "#(muxpilot panel) | %H:%M"

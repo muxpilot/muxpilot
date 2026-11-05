@@ -112,6 +112,22 @@ EOF
   chmod +x "$1"
 }
 
+# finish_media — what the site doctor's media-playable rule needs and vhs does
+# not give: moov before mdat ("faststart", lossless remux) so Safari can play
+# the mp4, and a poster png for a clip whose tape takes no Screenshot. Captions
+# (<name>.vtt) are written by hand next to the clip.
+finish_media() {
+  local mp4 name tmp
+  for mp4 in "$MEDIA_DIR"/*.mp4; do
+    [ -e "$mp4" ] || continue
+    name="${mp4%.mp4}"
+    tmp="$name.faststart.mp4"
+    ffmpeg -v error -y -i "$mp4" -c copy -movflags +faststart "$tmp" && mv "$tmp" "$mp4"
+    [ -e "$name.png" ] || ffmpeg -v error -y -ss 1 -i "$mp4" -frames:v 1 "$name.png"
+  done
+}
+
+
 # render_tapes [tape ...] — run the given tapes (default: all) through vhs.
 render_tapes() {
   ensure "$MEDIA_DIR" >/dev/null
@@ -135,5 +151,6 @@ render_tapes() {
       printf '  ✗ failed: %s\n' "$tape"; rc=1
     fi
   done
+  finish_media
   return $rc
 }

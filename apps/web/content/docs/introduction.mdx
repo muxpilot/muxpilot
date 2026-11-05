@@ -1,10 +1,7 @@
-import { DemoClip } from "../../components/DemoClip";
-
-export const metadata = {
-  title: "Introduction",
-  description:
-    "MuxPilot is a fast Rust tmux workspace picker and agent-aware session menu.",
-};
+---
+title: "Introduction"
+description: "MuxPilot is a fast Rust tmux workspace picker and agent-aware session menu."
+---
 
 # Introduction
 
@@ -14,7 +11,7 @@ export const metadata = {
   directories, and the coding agents inside them — behind one keystroke.
 </p>
 
-<DemoClip name="picker" caption="The picker: grouped targets, live agent state, one keystroke to switch." />
+<Video name="picker" label="The picker: grouped targets, live agent state, one keystroke to switch." />
 
 ## What it does
 
@@ -44,7 +41,7 @@ and it homes the cursor to where you already are: the current session in
 **Sessions**, and — when you open from a pane running an agent — that exact agent
 in **Agents**.
 
-<DemoClip name="navigate" caption="A tab per kind of target; switch by letter, and the picker reopens on the tab you last used." />
+<Video name="navigate" label="A tab per kind of target; switch by letter, and the picker reopens on the tab you last used." />
 
 ## Expand a session into its windows and agents
 
@@ -56,7 +53,7 @@ right there — no extra keystroke. Press <code>l</code> again on a window to ex
 its remaining shell panes, <kbd>Enter</kbd> to switch straight to a window or
 pane, and <code>h</code> to collapse.
 
-<DemoClip name="tree" caption="Expanding a session reveals its windows and auto-reveals each agent's pane — agent, model, and status inline." />
+<Video name="tree" label="Expanding a session reveals its windows and auto-reveals each agent's pane — agent, model, and status inline." />
 
 ## Agent awareness
 
