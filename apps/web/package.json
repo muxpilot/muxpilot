@@ -26,7 +26,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "@byoklab/site-doctor": "^0.4.0",
+    "@byoklab/site-doctor": "^0.4.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/mdx": "^2.0.13",
     "@types/node": "^22.10.2",
