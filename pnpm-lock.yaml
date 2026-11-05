@@ -11,8 +11,8 @@ importers:
   apps/web:
     dependencies:
       '@byoklab/site':
-        specifier: ^0.7.0
-        version: 0.7.0(2b523b7ad434d6123d4da4f4e7b64275)
+        specifier: ^0.7.1
+        version: 0.7.1(2b523b7ad434d6123d4da4f4e7b64275)
       '@byoklab/site-config':
         specifier: ^0.3.0
         version: 0.3.0
@@ -117,8 +117,8 @@ packages:
     peerDependencies:
       fumadocs-core: ~16.4.9
 
-  '@byoklab/site-mdx@0.1.1':
-    resolution: {integrity: sha512-srVqnXbIXVq/OpzCvD3XUncstJMnK7D2V40eM58ZlYEmb+IDV+mtrz6gh9kge+QS0YotRORqNrNFCcN+9CwAew==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-mdx/-/0.1.1/site-mdx-0.1.1.tgz}
+  '@byoklab/site-mdx@0.2.0':
+    resolution: {integrity: sha512-iqimcHndpdYvY+FrgwN8rD09XATA+IyNo0xYppyTuk3Ak0idoe8tpkli8Fe5G2yM0PGJ+g5zxsXjpYTStU3j3w==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-mdx/-/0.2.0/site-mdx-0.2.0.tgz}
     peerDependencies:
       fumadocs-core: ~16.4.9
       fumadocs-ui: ~16.4.9
@@ -136,8 +136,8 @@ packages:
     peerDependencies:
       react: ^19.0.0
 
-  '@byoklab/site@0.7.0':
-    resolution: {integrity: sha512-1EguprOInQn2o8XqH4Od/CdqNTJ6+DoPlFQmFzgz6qLGMPicME6S3O141Rq8Hbtjw1VocqRl4wf729r97QJ1rg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.7.0/site-0.7.0.tgz}
+  '@byoklab/site@0.7.1':
+    resolution: {integrity: sha512-7o4IAYRM6e1slVklL5y8Q7K8g/bDHR0abFMR/h8U4MQTSrCd69UWQehdLhxTkTZBEfWmoALTph2BiD/9eF+Bww==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.7.1/site-0.7.1.tgz}
     hasBin: true
     peerDependencies:
       fumadocs-core: ~16.4.9
@@ -2207,7 +2207,7 @@ snapshots:
     dependencies:
       fumadocs-core: 16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7)
 
-  '@byoklab/site-mdx@0.1.1(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(fumadocs-ui@16.4.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.4))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)':
+  '@byoklab/site-mdx@0.2.0(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(fumadocs-ui@16.4.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.4))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
       '@types/mdast': 4.0.4
@@ -2249,13 +2249,13 @@ snapshots:
     transitivePeerDependencies:
       - next
 
-  '@byoklab/site@0.7.0(2b523b7ad434d6123d4da4f4e7b64275)':
+  '@byoklab/site@0.7.1(2b523b7ad434d6123d4da4f4e7b64275)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
       '@byoklab/site-app': 0.3.1(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@byoklab/site-config': 0.3.0
       '@byoklab/site-llms': 0.1.1(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))
-      '@byoklab/site-mdx': 0.1.1(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(fumadocs-ui@16.4.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.4))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      '@byoklab/site-mdx': 0.2.0(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(fumadocs-ui@16.4.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.4))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
       '@byoklab/site-seo': 0.1.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@byoklab/site-telemetry': 0.1.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@byoklab/theme-public': 0.1.1

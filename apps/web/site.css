@@ -732,3 +732,90 @@
 .mp-footer {
   background: transparent;
 }
+
+/* docs content typography: the old site's article styles on the generated prose (#nd-page .prose) */
+#nd-page .prose h1 {
+  font-size: clamp(30px, 4vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+
+#nd-page .prose h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 44px 0 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--mp-border);
+}
+
+#nd-page .prose h3 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 30px 0 10px;
+}
+
+#nd-page .prose p {
+  color: var(--mp-text-2);
+  margin: 0 0 16px;
+  line-height: 1.65;
+}
+
+#nd-page .prose ul,
+#nd-page .prose ol {
+  color: var(--mp-text-2);
+  margin: 0 0 16px;
+  padding-left: 22px;
+  line-height: 1.65;
+}
+
+#nd-page .prose li {
+  margin: 4px 0;
+  font-size: 15px;
+}
+
+#nd-page .prose li::marker {
+  color: var(--mp-text-3);
+}
+
+#nd-page .prose strong {
+  color: var(--mp-text);
+  font-weight: 650;
+}
+
+#nd-page .prose a:not([data-card]) {
+  color: var(--mp-accent);
+  text-decoration: none;
+  font-weight: 400;
+  border-bottom: 1px solid color-mix(in srgb, var(--mp-accent) 35%, transparent);
+}
+
+#nd-page .prose a:not([data-card]):hover {
+  border-bottom-color: var(--mp-accent);
+}
+
+#nd-page .prose :not(pre) > code {
+  font-size: 0.86em;
+  color: var(--mp-accent);
+  background: var(--mp-surface-subtle);
+  border: 1px solid var(--mp-border);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+#nd-page .prose figure.shiki {
+  background: var(--mp-surface-subtle);
+  border: 1px solid var(--mp-border);
+  border-radius: 10px;
+  box-shadow: none;
+  margin: 0 0 18px;
+}
+
+#nd-page .prose figure.shiki pre {
+  font-size: 13px;
+  line-height: 1.6;
+}

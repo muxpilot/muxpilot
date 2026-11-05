@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: site.config.description
 };
 
-const { Video } = mdxComponentsFor(site) as { Video: (props: { name: string; label: string }) => React.ReactNode };
+const { Video } = mdxComponentsFor(site) as { Video: (props: { name: string; label: string; plain?: boolean }) => React.ReactNode };
 
 export default function Home() {
   return (
@@ -48,7 +48,7 @@ export default function Home() {
                 <i /> live
               </span>
             </div>
-            <Video name="picker" label="MuxPilot picker listing tmux workspaces" />
+            <Video name="picker" plain label="MuxPilot picker listing tmux workspaces" />
           </div>
         </section>
 
@@ -78,7 +78,7 @@ export default function Home() {
             session again.
           </p>
           <figure className="demo">
-            <Video name="tree" label="A MuxPilot session expanded into a tree of its windows" />
+            <Video name="tree" plain label="A MuxPilot session expanded into a tree of its windows" />
             <figcaption className="demo-cap">l / Space expands a session into its windows; h collapses it</figcaption>
           </figure>
         </section>
