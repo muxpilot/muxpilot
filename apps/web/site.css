@@ -704,3 +704,31 @@
     display: none;
   }
 }
+
+/* docs header title (site.chrome.tsx navTitle): dot, name and version badge */
+.mp-nav-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mp-nav-title .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--mp-accent);
+}
+
+.mp-nav-title .sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mp-text-3);
+  font-weight: 500;
+}
+
+/* docs footer (site.chrome.tsx footer): the landing's one-line bar */
+.mp-footer {
+  background: transparent;
+}

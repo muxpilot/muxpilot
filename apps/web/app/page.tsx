@@ -4,8 +4,6 @@ import type { Metadata } from "next";
 import { FeatureList } from "../components/features";
 import { InstallCards } from "../components/install-cards";
 import { LandingFooter, LandingHeader } from "../components/landing-chrome";
-import { THEME_MIGRATE } from "../components/theme-migrate";
-import { MUXPILOT_VERSION } from "../lib/version";
 import { site } from "./_site/runtime";
 
 // kind "app": the landing page is the site's own (the generator writes it for docs and landing sites only).
@@ -21,7 +19,6 @@ const { Video } = mdxComponentsFor(site) as { Video: (props: { name: string; lab
 export default function Home() {
   return (
     <div className="mp">
-      <script dangerouslySetInnerHTML={{ __html: THEME_MIGRATE }} />
       <LandingHeader />
       <main className="wrap">
         <section className="hero">
@@ -51,7 +48,7 @@ export default function Home() {
                 <i /> live
               </span>
             </div>
-            <img className="demo-media" src={`/media/picker.png?v=${MUXPILOT_VERSION}`} alt="MuxPilot picker listing tmux workspaces" />
+            <Video name="picker" label="MuxPilot picker listing tmux workspaces" />
           </div>
         </section>
 
@@ -70,9 +67,6 @@ export default function Home() {
           <p className="sec-label">Why MuxPilot</p>
           <h2 className="sec-title">One menu over everything you launch.</h2>
           <FeatureList />
-          <figure className="demo" style={{ marginTop: 30 }}>
-            <Video name="picker" label="MuxPilot picker demo" />
-          </figure>
         </section>
 
         <section className="band" id="windows">
@@ -84,7 +78,7 @@ export default function Home() {
             session again.
           </p>
           <figure className="demo">
-            <img className="demo-media" src={`/media/tree.png?v=${MUXPILOT_VERSION}`} width={1180} height={640} alt="A MuxPilot session expanded into a tree of its windows" />
+            <Video name="tree" label="A MuxPilot session expanded into a tree of its windows" />
             <figcaption className="demo-cap">l / Space expands a session into its windows; h collapses it</figcaption>
           </figure>
         </section>

@@ -11,8 +11,8 @@ importers:
   apps/web:
     dependencies:
       '@byoklab/site':
-        specifier: ^0.6.0
-        version: 0.6.0(2b523b7ad434d6123d4da4f4e7b64275)
+        specifier: ^0.7.0
+        version: 0.7.0(2b523b7ad434d6123d4da4f4e7b64275)
       '@byoklab/site-config':
         specifier: ^0.3.0
         version: 0.3.0
@@ -92,16 +92,14 @@ packages:
     resolution: {integrity: sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA==}
     engines: {node: '>=10'}
 
-  '@byoklab/site-app@0.3.0':
-    resolution: {integrity: sha512-uR0p7gRpSUsHK+ecg37wrt/lU1DC1S1Yhj5F2i4ySuqTXz2MJQ4SA9aQswsdPgr0CB2Ln9bkuKwu79WGyFqXQw==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-app/-/0.3.0/site-app-0.3.0.tgz}
-    engines: {node: '>=20'}
+  '@byoklab/site-app@0.3.1':
+    resolution: {integrity: sha512-b3Hx2Lp54pH5wShr9Fyr3RvRYx3AwocDMCAQfZwahOBw6JDCns4Bf1SD4CtiDvBJbLwU+MIMNLDpUCBvGAiqOQ==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-app/-/0.3.1/site-app-0.3.1.tgz}
     peerDependencies:
       next: ^16.1.6
       react: ^19.0.0
 
   '@byoklab/site-config@0.2.0':
     resolution: {integrity: sha512-I3EFvjsFIYY8qQjL3KJbTBSgngP5zpQs9jAVoMZDWuRjjW1Jz/lcipsskAZ6xXL43XeDgesq4+gTsbmIn3LPlg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-config/-/0.2.0/site-config-0.2.0.tgz}
-    engines: {node: '>=20'}
     hasBin: true
 
   '@byoklab/site-config@0.3.0':
@@ -111,17 +109,16 @@ packages:
 
   '@byoklab/site-doctor@0.4.1':
     resolution: {integrity: sha512-CVy8ro55HUpJ6gaZEil0zrUGHLdm8Xn8utsmiV2dEMdAez46Bxb8HH9T7K2LIfJxY8/SUu1ZIriXE1fLvmeIHQ==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-doctor/-/0.4.1/site-doctor-0.4.1.tgz}
+    engines: {node: '>=20'}
     hasBin: true
 
   '@byoklab/site-llms@0.1.1':
     resolution: {integrity: sha512-fsHiTHj9paJJpYyB1KaRJbo4zFNK0TEhrYXx5bFe6QYxCvnuJLxc7nDO+ZjwFKSyfiKPDFyHele0KQvdGRb6Bg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-llms/-/0.1.1/site-llms-0.1.1.tgz}
-    engines: {node: '>=20'}
     peerDependencies:
       fumadocs-core: ~16.4.9
 
   '@byoklab/site-mdx@0.1.1':
     resolution: {integrity: sha512-srVqnXbIXVq/OpzCvD3XUncstJMnK7D2V40eM58ZlYEmb+IDV+mtrz6gh9kge+QS0YotRORqNrNFCcN+9CwAew==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-mdx/-/0.1.1/site-mdx-0.1.1.tgz}
-    engines: {node: '>=20'}
     peerDependencies:
       fumadocs-core: ~16.4.9
       fumadocs-ui: ~16.4.9
@@ -130,20 +127,17 @@ packages:
 
   '@byoklab/site-seo@0.1.0':
     resolution: {integrity: sha512-KbuTjFRrefs23xU2M2QWrhGMTYas4Py6wBJ65d96IEcHkJ5dNOrQco236JQ4V40VDhXhlNIDIIBW/W02+3Tq0A==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-seo/-/0.1.0/site-seo-0.1.0.tgz}
-    engines: {node: '>=20'}
     peerDependencies:
       next: ^16.0.0
       react: ^19.0.0
 
   '@byoklab/site-telemetry@0.1.0':
     resolution: {integrity: sha512-WvHt/E+hSGlhCDok7Fji/Sm/tLqS662bhsLoM7NnyJ+9p2a/d14ASotwELL3kzhewhJ5UhySr00leAzGtZYqqg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-telemetry/-/0.1.0/site-telemetry-0.1.0.tgz}
-    engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
 
-  '@byoklab/site@0.6.0':
-    resolution: {integrity: sha512-ACluQ0finAzVaXr91IcYqdmlZbYk+zIYh5FXoTpkieBsCA49i1eNILB+InUDN3HPsnmaFA6HqVweij0gGngLEw==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.6.0/site-0.6.0.tgz}
-    engines: {node: '>=20'}
+  '@byoklab/site@0.7.0':
+    resolution: {integrity: sha512-1EguprOInQn2o8XqH4Od/CdqNTJ6+DoPlFQmFzgz6qLGMPicME6S3O141Rq8Hbtjw1VocqRl4wf729r97QJ1rg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.7.0/site-0.7.0.tgz}
     hasBin: true
     peerDependencies:
       fumadocs-core: ~16.4.9
@@ -156,7 +150,6 @@ packages:
 
   '@byoklab/theme-public@0.1.1':
     resolution: {integrity: sha512-72STJKvjqG53Ipw4xOywlB4hJkIlv/Qe1addC5jLSOhY6OLQ/pIbZmoyHIB1RGrAu1JHS751y2JAhzmVWMjFkg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Ftheme-public/-/0.1.1/theme-public-0.1.1.tgz}
-    engines: {node: '>=20'}
 
   '@emnapi/runtime@1.11.2':
     resolution: {integrity: sha512-kyOl3X0DuTiT1h2ft8r2fYO8JYtU9a9Xis/zBSiGArNaagCOWx90N1k2wxp18czFDH+OgcWGb5ZP/XMt3dcyPA==}
@@ -2163,7 +2156,7 @@ snapshots:
 
   '@alloc/quick-lru@5.3.0': {}
 
-  '@byoklab/site-app@0.3.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@byoklab/site-app@0.3.1(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
       '@byoklab/site-config': 0.3.0
@@ -2256,10 +2249,10 @@ snapshots:
     transitivePeerDependencies:
       - next
 
-  '@byoklab/site@0.6.0(2b523b7ad434d6123d4da4f4e7b64275)':
+  '@byoklab/site@0.7.0(2b523b7ad434d6123d4da4f4e7b64275)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
-      '@byoklab/site-app': 0.3.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@byoklab/site-app': 0.3.1(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@byoklab/site-config': 0.3.0
       '@byoklab/site-llms': 0.1.1(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))
       '@byoklab/site-mdx': 0.1.1(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(fumadocs-ui@16.4.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.4))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
