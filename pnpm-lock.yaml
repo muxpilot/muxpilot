@@ -11,8 +11,8 @@ importers:
   apps/web:
     dependencies:
       '@byoklab/site':
-        specifier: ^0.5.0
-        version: 0.5.0(2b523b7ad434d6123d4da4f4e7b64275)
+        specifier: ^0.6.0
+        version: 0.6.0(2b523b7ad434d6123d4da4f4e7b64275)
       '@byoklab/site-config':
         specifier: ^0.3.0
         version: 0.3.0
@@ -28,6 +28,9 @@ importers:
       next:
         specifier: ^16.1.6
         version: 16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-themes:
+        specifier: ^0.4.6
+        version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react:
         specifier: ^19.2.4
         version: 19.2.7
@@ -36,8 +39,8 @@ importers:
         version: 19.2.7(react@19.2.7)
     devDependencies:
       '@byoklab/site-doctor':
-        specifier: ^0.3.0
-        version: 0.3.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)
+        specifier: ^0.4.0
+        version: 0.4.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.4
@@ -104,9 +107,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  '@byoklab/site-doctor@0.3.0':
-    resolution: {integrity: sha512-X+Rl75VLKqBNrXVoqCZ/oyTUKFhYQ1DiwsfJU4j1t0X1v7WWFhNPfRgHpl580LhweXBZYGij7enPyYkoU6SBAw==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-doctor/-/0.3.0/site-doctor-0.3.0.tgz}
-    engines: {node: '>=20'}
+  '@byoklab/site-doctor@0.4.0':
+    resolution: {integrity: sha512-S22zKfL1JaMiU/Xa19ZG+gD3VhaK2+kVtsCniko2GVMGXdAM8twXS2Cy55ALh+66AaRVoxfQ17+0ZgOc65TDbw==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-doctor/-/0.4.0/site-doctor-0.4.0.tgz}
     hasBin: true
 
   '@byoklab/site-llms@0.1.1':
@@ -133,8 +135,8 @@ packages:
     peerDependencies:
       react: ^19.0.0
 
-  '@byoklab/site@0.5.0':
-    resolution: {integrity: sha512-ak1W92ezAE4x1dTjWD5T2n5VWAfrbHXwLkBsjGbb9k5W78Q21EuoH+3g/mESW46oiJ9gwXC7gnWZSJHOjeW8LA==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.5.0/site-0.5.0.tgz}
+  '@byoklab/site@0.6.0':
+    resolution: {integrity: sha512-ACluQ0finAzVaXr91IcYqdmlZbYk+zIYh5FXoTpkieBsCA49i1eNILB+InUDN3HPsnmaFA6HqVweij0gGngLEw==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.6.0/site-0.6.0.tgz}
     hasBin: true
     peerDependencies:
       fumadocs-core: ~16.4.9
@@ -2182,7 +2184,7 @@ snapshots:
       tsx: 4.23.15
       zod: 3.25.76
 
-  '@byoklab/site-doctor@0.3.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)':
+  '@byoklab/site-doctor@0.4.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
       '@byoklab/site-config': 0.3.0
@@ -2246,7 +2248,7 @@ snapshots:
     transitivePeerDependencies:
       - next
 
-  '@byoklab/site@0.5.0(2b523b7ad434d6123d4da4f4e7b64275)':
+  '@byoklab/site@0.6.0(2b523b7ad434d6123d4da4f4e7b64275)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
       '@byoklab/site-app': 0.3.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

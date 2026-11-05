@@ -9,7 +9,7 @@ export default defineSite({
     "A fast Rust picker for tmux sessions, tmuxinator layouts, working directories, and the coding agents running inside them.",
   siteUrl: "https://muxpilot.n.yatsyk.com",
   projectId: "muxpilot",
-  kind: "docs",
+  kind: "app",
   // A public site: no preset, so the public theme (and the Umami host below, which a preset would supply).
   index: true,
   links: {
