@@ -11,8 +11,8 @@ importers:
   apps/web:
     dependencies:
       '@byoklab/site':
-        specifier: ^0.4.2
-        version: 0.4.2(2b523b7ad434d6123d4da4f4e7b64275)
+        specifier: ^0.5.0
+        version: 0.5.0(2b523b7ad434d6123d4da4f4e7b64275)
       '@byoklab/site-config':
         specifier: ^0.3.0
         version: 0.3.0
@@ -89,8 +89,8 @@ packages:
     resolution: {integrity: sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA==}
     engines: {node: '>=10'}
 
-  '@byoklab/site-app@0.2.0':
-    resolution: {integrity: sha512-FlM7DJHn9lYOOCQW4AwRxvzQPAloEsUaMgqhbozCbspijgNhtRhxzr+AK+9xZzal6kNF41pLv4LzkNZc2hJemg==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-app/-/0.2.0/site-app-0.2.0.tgz}
+  '@byoklab/site-app@0.3.0':
+    resolution: {integrity: sha512-uR0p7gRpSUsHK+ecg37wrt/lU1DC1S1Yhj5F2i4ySuqTXz2MJQ4SA9aQswsdPgr0CB2Ln9bkuKwu79WGyFqXQw==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite-app/-/0.3.0/site-app-0.3.0.tgz}
     peerDependencies:
       next: ^16.1.6
       react: ^19.0.0
@@ -133,8 +133,8 @@ packages:
     peerDependencies:
       react: ^19.0.0
 
-  '@byoklab/site@0.4.2':
-    resolution: {integrity: sha512-VDYC7LKoymrjg/IUeYmMh8rcsYjv8wCdkrJs7+H0SuKAqj9+ilHCqz7XQ/NNxO5X2dJ8MLpfx+b4zuYEMS6sag==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.4.2/site-0.4.2.tgz}
+  '@byoklab/site@0.5.0':
+    resolution: {integrity: sha512-ak1W92ezAE4x1dTjWD5T2n5VWAfrbHXwLkBsjGbb9k5W78Q21EuoH+3g/mESW46oiJ9gwXC7gnWZSJHOjeW8LA==, tarball: https://git.i.byokapi.com/api/packages/byoklab/npm/%40byoklab%2Fsite/-/0.5.0/site-0.5.0.tgz}
     hasBin: true
     peerDependencies:
       fumadocs-core: ~16.4.9
@@ -2153,11 +2153,12 @@ snapshots:
 
   '@alloc/quick-lru@5.3.0': {}
 
-  '@byoklab/site-app@0.2.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@byoklab/site-app@0.3.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
-      '@byoklab/site-config': 0.2.0
+      '@byoklab/site-config': 0.3.0
       clsx: 2.1.1
+      fontkit: 2.0.4
       mobx: 6.16.1
       mobx-react-lite: 4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       next: 16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -2245,10 +2246,10 @@ snapshots:
     transitivePeerDependencies:
       - next
 
-  '@byoklab/site@0.4.2(2b523b7ad434d6123d4da4f4e7b64275)':
+  '@byoklab/site@0.5.0(2b523b7ad434d6123d4da4f4e7b64275)':
     dependencies:
       '@agentvibes/kit': 0.2.0(clsx@2.1.1)(mobx-react-lite@4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(mobx@6.16.1)(react@19.2.7)(tailwind-merge@3.7.0)(ts-pattern@5.9.2)
-      '@byoklab/site-app': 0.2.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@byoklab/site-app': 0.3.0(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@byoklab/site-config': 0.3.0
       '@byoklab/site-llms': 0.1.1(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))
       '@byoklab/site-mdx': 0.1.1(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(fumadocs-ui@16.4.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.4.11(@types/react@19.2.17)(lucide-react@0.563.0(react@19.2.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.6.7))(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.4))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)

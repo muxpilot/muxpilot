@@ -1,5 +1,7 @@
 import { defineSite } from "@byoklab/site-config";
 
+import { MUXPILOT_VERSION } from "./lib/version";
+
 export default defineSite({
   schemaVersion: 1,
   name: "MuxPilot",
@@ -13,6 +15,10 @@ export default defineSite({
   links: {
     github: "muxpilot/muxpilot",
     extra: [
+      // The old header showed the version next to the name; the generator has no badge, so it is a header link to the release notes.
+      { label: `v${MUXPILOT_VERSION}`, href: "https://github.com/muxpilot/muxpilot/releases", placement: "header" },
+      // The old footer line, same words; the generator offers links only, so it links to the licence.
+      { label: "Open source · MIT licensed", href: "https://github.com/muxpilot/muxpilot/blob/main/LICENSE", placement: "footer" },
       { label: "crates.io", href: "https://crates.io/crates/muxpilot", placement: "footer" },
       { label: "npm", href: "https://www.npmjs.com/package/muxpilot", placement: "footer" }
     ]
