@@ -819,3 +819,13 @@
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* docs body text in the old site's sans stack; code keeps the generated mono font (fonts-coverage) */
+#nd-page .prose {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* code blocks as on the old site: one colour, the text colour of the page in both modes */
+#nd-page .prose figure.shiki code span {
+  color: var(--mp-text) !important;
+}
