@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      // prebuild (scripts/sync-version.mjs) reads the crate version from outside the package.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/crates/muxpilot/Cargo.toml"],
+      "outputs": ["out/**", ".next/**", "!.next/cache/**"]
+    }
+  }
+}

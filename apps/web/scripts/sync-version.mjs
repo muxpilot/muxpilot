@@ -1,10 +1,10 @@
 // sync-version.mjs — copy the crate's version into a committed TS constant so the
 // site's version badge always matches what's actually released.
 //
-// Vercel uploads only apps/web, so the site cannot read ../../crates/.../Cargo.toml
-// at build time on the server. Instead we bake the version into app/version.ts and
+// A deploy of apps/web alone cannot read ../../crates/.../Cargo.toml
+// at build time. Instead we bake the version into app/version.ts and
 // commit it. This script refreshes that file from the crate whenever the crate is
-// reachable (local builds / deploys); on Vercel the crate is absent, so it no-ops
+// reachable (local builds / deploys); when the crate is absent it no-ops
 // and the committed value ships. Wired as a `prebuild` step and run before deploy.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -15,7 +15,7 @@ const cargo = join(here, "..", "..", "..", "crates", "muxpilot", "Cargo.toml");
 const out = join(here, "..", "app", "version.ts");
 
 if (!existsSync(cargo)) {
-  // On Vercel (only apps/web is uploaded) the crate isn't present — keep the
+  // When only apps/web is checked out the crate is not present — keep the
   // committed version.ts as-is.
   console.log("sync-version: crate Cargo.toml not found; keeping committed version");
   process.exit(0);

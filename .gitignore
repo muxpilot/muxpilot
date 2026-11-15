@@ -3,6 +3,8 @@
 /apps/web/.next/
 /apps/web/node_modules/
 /apps/web/out/
+/apps/web/.wrangler/
+.turbo/
 /.env
 /.env.*
 !.env.example
