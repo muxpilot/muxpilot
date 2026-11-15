@@ -5,7 +5,8 @@
     "dev": "next dev --port 3001",
     "prebuild": "node scripts/sync-version.mjs",
     "build": "next build",
-    "start": "next start --port 3001"
+    "preview": "wrangler dev --port 3001",
+    "deploy:cloudflare": "wrangler deploy"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
@@ -20,6 +21,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "wrangler": "4.162.0"
   }
 }
