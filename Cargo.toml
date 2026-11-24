@@ -19,3 +19,25 @@ unicode-width = "0.2.2"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+# The @agentvibes/guardrails Clippy canon, written by guardrails init.
+# CI runs clippy with -D warnings. README "Rust" in @agentvibes/guardrails gives the reasons.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Whole groups at warn, under every single lint (priority -1), so a single
+# lint below can still be raised to deny. CI runs clippy with -D warnings,
+# so a warning fails the build all the same.
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+# Restriction lints: these are off in Clippy by default.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+undocumented_unsafe_blocks = "deny"

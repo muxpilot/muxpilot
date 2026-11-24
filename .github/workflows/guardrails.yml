@@ -1,0 +1,51 @@
+name: guardrails
+
+# Public repo: GitHub-hosted runners only.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guardrails-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The reusable gate: verify-diff (fails only on findings a change ADDS; in this
+  # repo it also runs cargo clippy and cargo fmt --check), the leaks scan, and
+  # metrics --check when a .guardrails/ baseline is committed.
+  gate:
+    uses: AgentVibes/guardrails/.github/workflows/guardrails-gate.yml@07a2ef9427756e24635de878fccebbcc9cb70628 # v0.4.0
+    with:
+      runner_labels: '["ubuntu-latest"]'
+      leaks: true
+      # The gate's default tools plus Rust, because verify-diff runs Clippy here.
+      tool_versions: |
+        node 25.9.0
+        pnpm 10.12.1
+        ast-grep 0.45.2
+        gitleaks 8.30.1
+        rust 1.94.1
+
+  # `pnpm lint` = guardrails doctor + verify-diff. The gate does not run doctor,
+  # which is what catches biome preset drift and a broken [[override]] table.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+        with:
+          tool_versions: |
+            node 25.9.0
+            pnpm 10.12.1
+            ast-grep 0.45.2
+            biome 2.5.10
+            rust 1.94.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint

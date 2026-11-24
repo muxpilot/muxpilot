@@ -1,3 +1,11 @@
 projectId   = "muxpilot"
 name        = "MuxPilot"
 description = "Agent-aware tmux workspace picker and session launcher"
+
+[stack]
+# detected from: @muxpilot/web
+platform = "next-client"                # vite-spa | expo | next-client | next-ssr
+state = "none"                      # mobx | none
+storeRuntime = "none"        # client-singleton | request-scoped | none
+styling = "theme-inline"                  # theme-inline | tailwind | nativewind
+componentModel = "conventional"    # two-tier | conventional

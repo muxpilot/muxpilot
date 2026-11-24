@@ -550,7 +550,7 @@ fn draw_entry_row(
 
 /// Draw one expanded window child row: an indented tree connector under the
 /// parent session, then window columns aligned beneath the parent's columns.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "<explanation>")]
 fn draw_window_row(
     frame_line: &mut String,
     list_width: usize,
@@ -595,7 +595,7 @@ fn draw_window_row(
 
 /// Draw one pane leaf (third tree level): a deeper tree connector under the
 /// window, then the pane's model/state columns.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "<explanation>")]
 fn draw_pane_row(
     frame_line: &mut String,
     list_width: usize,
@@ -639,7 +639,7 @@ fn draw_pane_row(
 }
 
 /// Draw the detail preview pane for the selected entry.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "<explanation>")]
 fn draw_preview(
     frame: &mut [String],
     entry: Option<&NativeEntry>,

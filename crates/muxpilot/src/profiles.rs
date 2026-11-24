@@ -694,6 +694,10 @@ fn user_profiles_path() -> Option<PathBuf> {
 /// Build the registry: embedded defaults first, then the user override file
 /// (replace-by-id) layered on top. A bad user file is logged and ignored; the
 /// embedded defaults always classify.
+#[expect(
+    clippy::expect_used,
+    reason = "default-profiles.toml is compiled in with include_str!, and a unit test parses it"
+)]
 fn load() -> Registry {
     let mut config = parse_config(DEFAULT_PROFILES, "default-profiles.toml")
         .expect("compiled-in default-profiles.toml must parse");

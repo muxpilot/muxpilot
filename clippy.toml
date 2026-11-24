@@ -1,0 +1,7 @@
+# Written by `guardrails init` next to the workspace Cargo.toml. Test code may
+# unwrap, expect and panic: a failing test SHOULD panic, and the error path it
+# would otherwise need is noise. Everything else in the canon still applies to
+# tests.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
