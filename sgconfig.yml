@@ -1,0 +1,6 @@
+# ast-grep config — rules come from the @agentvibes/guardrails package.
+# Add repo-local extra rules by creating .ast-grep/rules/ and uncommenting the
+# second ruleDir. Run: guardrails verify [paths]
+ruleDirs:
+  - node_modules/@agentvibes/guardrails/rules
+  # - .ast-grep/rules

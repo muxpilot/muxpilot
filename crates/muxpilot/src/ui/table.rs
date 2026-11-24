@@ -105,7 +105,13 @@ fn columns_for_opts(
 
 /// Column header built from the same plan as body rows (used in tests to assert
 /// header/body alignment; handy for a future opt-in header row).
-#[allow(dead_code)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "used only by tests that check header and body alignment"
+    )
+)]
 pub(crate) fn entry_header(width: usize) -> String {
     columns_for(width, "workspace", "caps", "status", "last")
 }

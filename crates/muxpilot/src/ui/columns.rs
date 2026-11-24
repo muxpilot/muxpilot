@@ -119,7 +119,13 @@ pub(crate) fn fit(s: &str, width: usize, align: Align) -> String {
 
 /// How a column claims horizontal space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // `Flex` is part of the layout API, exercised by tests.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "`Flex` is part of the layout API, exercised by tests"
+    )
+)]
 pub(crate) enum Constraint {
     /// Exactly `n` cells (clamped down if space is scarce).
     Fixed(usize),
@@ -190,7 +196,9 @@ pub(crate) fn solve(total: usize, gap: usize, cols: &[Constraint]) -> Vec<usize>
     if weight_sum == 0 {
         // No flexible columns; hand the surplus to the last column so we still
         // fill `total` exactly.
-        *widths.last_mut().expect("n > 0") += surplus;
+        if let Some(last) = widths.last_mut() {
+            *last += surplus;
+        }
         return widths;
     }
 

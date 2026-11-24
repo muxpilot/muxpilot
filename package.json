@@ -5,9 +5,11 @@
   "scripts": {
     "web:dev": "pnpm --dir apps/web dev",
     "web:build": "turbo run build --filter=@muxpilot/web",
+    "lint": "guardrails doctor && guardrails verify-diff",
     "web:preview": "pnpm --dir apps/web preview"
   },
   "devDependencies": {
+    "@agentvibes/guardrails": "0.4.0",
     "turbo": "2.11.11"
   }
 }

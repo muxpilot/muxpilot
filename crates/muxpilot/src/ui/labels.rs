@@ -102,7 +102,10 @@ pub(crate) const EN: Labels = Labels {
 // The single arm is the locale-selection seam: add `Some("de") => &DE,` etc.
 // above the wildcard as locales land. Kept as a `match` so that stays a one-line
 // change rather than a control-flow rewrite.
-#[allow(clippy::match_single_binding)]
+#[expect(
+    clippy::match_single_binding,
+    reason = "the single arm is the locale-selection seam described above"
+)]
 pub(crate) fn labels() -> &'static Labels {
     match std::env::var("MUXPILOT_LANG").ok().as_deref() {
         _ => &EN,
